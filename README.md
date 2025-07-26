@@ -2,6 +2,7 @@
 
 Sworduh is a server-side sword system for Roblox. It is designed to handle giving swords to players, tracking damage, and cleaning up resources automatically. It uses the classic linked sword mechanics, including slash and lunge attacks.
 
+View the full documentation [here](https://sequesteredone.github.io/Sworduh/)
 ## Setup
 
 ### Rojo (Recommended)
