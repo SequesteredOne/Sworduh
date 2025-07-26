@@ -1,0 +1,17 @@
+# Project place file
+/Sworduh.rbxlx
+
+# Roblox Studio lock files
+/*.rbxlx.lock
+/*.rbxl.lock
+sourcemap.json
+
+# Docs
+/build/
+out/
+
+.env
+*.env
+.env.*
+
+.vscode/

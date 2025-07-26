@@ -1,0 +1,24 @@
+{
+  "name": "Sworduh",
+  "tree": {
+    "$className": "DataModel",
+
+    "ReplicatedStorage": {
+      "Sworduh": {
+        "$path": "src"
+      }
+    },
+
+    "Workspace": {
+      "$properties": {
+        "FilteringEnabled": true
+      }
+    },
+
+    "SoundService": {
+      "$properties": {
+        "RespectFilteringEnabled": true
+      }
+    }
+  }
+}

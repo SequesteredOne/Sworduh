@@ -1,0 +1,33 @@
+title = "Sworduh"
+gitRepoUrl = "https://github.com/SequesteredOne/Sworduh"
+
+gitSourceBranch = "main"
+changelog = false
+
+[[classOrder]]
+section = "Modules"
+classes = ["Sworduh", "SwordHandler"]
+
+apiCategories = [
+    "constructor", 
+    "core",
+    "utility",
+    "private"
+]
+
+[docusaurus]
+onBrokenLinks = "warn"
+onBrokenMarkdownLinks = "warn"
+favicon = "assets/favicon.ico"
+
+projectName = "sworduh"
+url = "https://SequesteredOne.github.io"
+baseUrl = "/Sworduh"
+tagline = "A comprehensive Roblox linked sword system"
+
+[home]
+enabled = false
+
+[footer]
+style = "dark"
+copyright = "Built with Moonwave and Docusaurus"
