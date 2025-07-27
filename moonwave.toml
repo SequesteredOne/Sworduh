@@ -6,7 +6,7 @@ changelog = false
 
 [[classOrder]]
 section = "Modules"
-classes = ["Sworduh", "SwordHandler"]
+classes = ["Sworduh", "Configuration", "SwordHandler"]
 
 apiCategories = [
     "constructor", 

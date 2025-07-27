@@ -17,6 +17,8 @@
 local Players = game:GetService("Players")
 local Debris = game:GetService("Debris")
 
+local Configuration = require(script.Parent:WaitForChild("Configuration"))
+
 --[=[
     @interface SwordHandler
     @within SwordHandler
@@ -81,58 +83,6 @@ local SwordHandler: SwordHandler = {}:: SwordHandler
 SwordHandler.__index = SwordHandler
 
 --[=[
-    @interface Config
-    @within SwordHandler
-    
-    Configuration settings for sword behavior and timing.
-    
-    .TIMING table -- Timing constants for attacks
-    .TIMING.SLASH_TIME number -- Duration of slash attack (seconds)
-    .TIMING.LUNGE_TIME number -- Duration of lunge attack (seconds) 
-    .TIMING.LUNGE_WINDOW number -- Time window for lunge activation (seconds)
-    .COMBAT table -- Combat-related settings
-    .COMBAT.STUD_CAP number -- Maximum distance for damage (studs)
-    .COMBAT.DAMAGE_VALUES table -- Different damage amounts
-    .COMBAT.DAMAGE_VALUES.BASE number -- Base damage
-    .COMBAT.DAMAGE_VALUES.SLASH number -- Slash attack damage
-    .COMBAT.DAMAGE_VALUES.LUNGE number -- Lunge attack damage
-    .COMBAT.DAMAGE_VALUES.PASSIVE number -- Passive collision damage
-    .GRIPS table -- Tool grip configurations
-    .GRIPS.UP CFrame -- Normal grip position
-    .GRIPS.OUT CFrame -- Extended grip for attacks
-    .TASK_CLEANUP_THRESHOLD number -- When to clean up completed tasks
-    .COMPONENT_WAIT_TIME number -- Timeout for waiting on components (seconds)
-    .SOUND_NAMES {string} -- Required sound effect names
-]=]
-
-local CONFIG = {
-    TIMING = {
-        SLASH_TIME = 0.25,
-        LUNGE_TIME = 0.75,
-        LUNGE_WINDOW = 0.2,
-    },
-
-    COMBAT = {
-        STUD_CAP = 12,
-        DAMAGE_VALUES = {
-            BASE = 5,
-            SLASH = 10,
-            LUNGE = 30,
-            PASSIVE = 3,
-        },
-    },
-
-    GRIPS = {
-        UP = CFrame.new(0, 0, -1.5, 0, 0, 1, 1, 0, 0, 0, 1, 0),
-        OUT = CFrame.new(0, 0, -1.5, 0, -1, -0, -1, 0, -0, 0, 0, -1),
-    },
-    
-    TASK_CLEANUP_THRESHOLD = 10, -- Clean up completed tasks when this many accumulate
-    COMPONENT_WAIT_TIME = 5, -- Seconds to wait for sword components
-    SOUND_NAMES = {"Slash", "Lunge", "Unsheathe"},
-}
-
---[=[
     Creates a new sword handler for a player.
     
     :::warning
@@ -159,8 +109,8 @@ function SwordHandler.new(player: Player, sword: Tool, lastDamagerCache: {[Playe
     self.SwordTool = sword
     self.LastDamagerCache = lastDamagerCache
 
-    local handle = sword:WaitForChild("Handle", CONFIG.COMPONENT_WAIT_TIME) :: BasePart
-    local hitbox = sword:WaitForChild("Hitbox", CONFIG.COMPONENT_WAIT_TIME) :: BasePart
+    local handle = sword:WaitForChild("Handle", Configuration.SYSTEM.COMPONENT_WAIT_TIME) :: BasePart
+    local hitbox = sword:WaitForChild("Hitbox", Configuration.SYSTEM.COMPONENT_WAIT_TIME) :: BasePart
 
     if not handle or not hitbox then
         error("Essential sword components missing")
@@ -170,8 +120,8 @@ function SwordHandler.new(player: Player, sword: Tool, lastDamagerCache: {[Playe
     self.Hitbox = hitbox
 
     self.Sounds = {}
-    for _, soundName in CONFIG.SOUND_NAMES do
-        local sound = handle:WaitForChild(soundName, CONFIG.COMPONENT_WAIT_TIME) :: Sound?
+    for _, soundName in Configuration.SYSTEM.SOUND_NAMES do
+        local sound = handle:WaitForChild(soundName, Configuration.SYSTEM.COMPONENT_WAIT_TIME) :: Sound?
         if sound then
             self.Sounds[soundName] = sound
         else
@@ -179,7 +129,7 @@ function SwordHandler.new(player: Player, sword: Tool, lastDamagerCache: {[Playe
         end
     end
 
-    self.Damage = CONFIG.COMBAT.DAMAGE_VALUES.BASE
+    self.Damage = Configuration.COMBAT.DAMAGE_VALUES.BASE
     self.IsAttacking = false
     self.LastAttackTime = 0
     self.IsToolEquipped = false
@@ -350,7 +300,7 @@ function SwordHandler:_onActivated()
 
     local currentTime = os.clock()
     local timeSinceLastAttack = currentTime - self.LastAttackTime
-    local isLungeAttempt = timeSinceLastAttack < CONFIG.TIMING.LUNGE_WINDOW
+    local isLungeAttempt = timeSinceLastAttack < Configuration.TIMING.LUNGE_WINDOW
 
     self.LastAttackTime = currentTime
 
@@ -448,13 +398,13 @@ function SwordHandler:_onTouch(hit: BasePart)
 
     local deltaPosition = targetRoot.Position - playerRoot.Position
     local distanceSquared = deltaPosition:Dot(deltaPosition)
-    if distanceSquared > CONFIG.COMBAT.STUD_CAP ^ 2 then
+    if distanceSquared > Configuration.COMBAT.STUD_CAP ^ 2 then
         return
     end
 
     self.LastDamagerCache[targetPlayer] = self.Player
 
-    local damage = self.Damage == CONFIG.COMBAT.DAMAGE_VALUES.BASE and CONFIG.COMBAT.DAMAGE_VALUES.PASSIVE or self.Damage
+    local damage = self.Damage == Configuration.COMBAT.DAMAGE_VALUES.BASE and Configuration.COMBAT.DAMAGE_VALUES.PASSIVE or self.Damage
     humanoid:TakeDamage(damage)
 end
 
@@ -512,7 +462,7 @@ end
 ]=]
 
 function SwordHandler:_performSlash()
-    self.Damage = CONFIG.COMBAT.DAMAGE_VALUES.SLASH
+    self.Damage = Configuration.COMBAT.DAMAGE_VALUES.SLASH
 
     local slashSound = self.Sounds.Slash
     if slashSound then
@@ -522,10 +472,10 @@ function SwordHandler:_performSlash()
     self:_playAnimation("Slash")
 
     self:_scheduleTask(function()
-        if not self.IsDestroyed and self.Damage == CONFIG.COMBAT.DAMAGE_VALUES.SLASH then
-            self.Damage = CONFIG.COMBAT.DAMAGE_VALUES.BASE
+        if not self.IsDestroyed and self.Damage == Configuration.COMBAT.DAMAGE_VALUES.SLASH then
+            self.Damage = Configuration.COMBAT.DAMAGE_VALUES.BASE
         end
-    end, CONFIG.TIMING.SLASH_TIME)
+    end, Configuration.TIMING.SLASH_TIME)
 end
 
 --[=[
@@ -536,7 +486,7 @@ end
 ]=]
 
 function SwordHandler:_performLunge()
-    self.Damage = CONFIG.COMBAT.DAMAGE_VALUES.LUNGE
+    self.Damage = Configuration.COMBAT.DAMAGE_VALUES.LUNGE
     self.IsAttacking = true
 
     local lungeSound = self.Sounds.Lunge
@@ -550,15 +500,15 @@ function SwordHandler:_performLunge()
         if not self.IsDestroyed and self.IsAttacking then
             self:_setSwordGrip("OUT")
         end
-    end, CONFIG.TIMING.SLASH_TIME + 0.05)
+    end, Configuration.TIMING.SLASH_TIME + 0.05)
 
     self:_scheduleTask(function()
         if not self.IsDestroyed then
             self:_setSwordGrip("UP")
             self.IsAttacking = false
-            self.Damage = CONFIG.COMBAT.DAMAGE_VALUES.BASE
+            self.Damage = Configuration.COMBAT.DAMAGE_VALUES.BASE
         end
-    end, CONFIG.TIMING.SLASH_TIME + CONFIG.TIMING.LUNGE_TIME)
+    end, Configuration.TIMING.SLASH_TIME + Configuration.TIMING.LUNGE_TIME)
 end
 
 --[=[
@@ -572,7 +522,7 @@ end
 
 function SwordHandler:_resetSwordState()
     self.IsAttacking = false
-    self.Damage = CONFIG.COMBAT.DAMAGE_VALUES.BASE
+    self.Damage = Configuration.COMBAT.DAMAGE_VALUES.BASE
     self.IsToolEquipped = false
 
     if not self.IsDestroyed and self.SwordTool then
@@ -593,7 +543,7 @@ function SwordHandler:_setSwordGrip(gripType: "UP" | "OUT")
         return
     end
 
-    local grip = CONFIG.GRIPS[gripType]
+    local grip = Configuration.TOOL.GRIPS[gripType]
     if not grip then
         return
     end
@@ -648,7 +598,7 @@ function SwordHandler:_scheduleTask(callback: () -> (), delay: number)
     
     table.insert(self.ActiveTasks, taskThread)
     
-    if #self.ActiveTasks > CONFIG.TASK_CLEANUP_THRESHOLD then
+    if #self.ActiveTasks > Configuration.SYSTEM.TASK_CLEANUP_THRESHOLD then
         self:_cleanupCompletedTasks()
     end
 end

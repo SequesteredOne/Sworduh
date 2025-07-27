@@ -73,23 +73,11 @@
 
 local Players = game:GetService("Players")
 local InsertService = game:GetService("InsertService")
+
+local Configuration = require(script:WaitForChild("Configuration"))
 local SwordHandler = require(script:WaitForChild("SwordHandler"))
 
 export type SwordHandler = SwordHandler.SwordHandler
-
---[=[
-    @interface Constants
-    @within Sworduh
-    
-    Configuration constants for the Sworduh system.
-    
-    .CHARACTER_TIMEOUT number -- Maximum time to wait for character components (seconds)
-    .CHARACTER_POLL_INTERVAL number -- How often to check if character is ready (seconds)
-]=]
-local CONSTANTS = {
-    CHARACTER_TIMEOUT = 5,
-    CHARACTER_POLL_INTERVAL = 0.1, -- How often to check if character is ready
-}
 
 --[=[
     @interface Sworduh
@@ -242,13 +230,13 @@ function Sworduh:Sword(player: Player): SwordHandler?
                 end
             end)
 
-            timeOutConnection = task.delay(CONSTANTS.CHARACTER_TIMEOUT, function()
+            timeOutConnection = task.delay(Configuration.CHARACTER.TIMEOUT, function()
                 if connection then connection:Disconnect() end
                 warn(player.Name, "timeout while waiting for character to be parented.")
             end)
 
             while not characterReady and connection and connection.Connected do
-                task.wait(CONSTANTS.CHARACTER_POLL_INTERVAL)
+                task.wait(Configuration.CHARACTER.POLL_INTERVAL)
             end
 
             if not characterReady then
@@ -256,8 +244,8 @@ function Sworduh:Sword(player: Player): SwordHandler?
             end
         end
 
-        local humanoid = character:WaitForChild("Humanoid", CONSTANTS.CHARACTER_TIMEOUT)
-        local humanoidRootPart = character:WaitForChild("HumanoidRootPart", CONSTANTS.CHARACTER_TIMEOUT)
+        local humanoid = character:WaitForChild("Humanoid", Configuration.CHARACTER.TIMEOUT)
+        local humanoidRootPart = character:WaitForChild("HumanoidRootPart", Configuration.CHARACTER.TIMEOUT)
         
         if not humanoid or not humanoidRootPart then
             warn("Character components not ready for", player.Name)
@@ -561,13 +549,13 @@ end
 function Sworduh:_createSword(): Tool?
     local sword = Instance.new("Tool")
     sword.Name = "Sword"
-    sword.CanBeDropped = false
-    sword.Grip = CFrame.new(0, 0, -1.5, 0, 0, 1, 1, 0, 0, 0, 1, 0)
-    sword.TextureId = "http://www.roblox.com/asset/?id=124987047"
+    sword.CanBeDropped = Configuration.TOOL.CAN_BE_DROPPED
+    sword.Grip = Configuration.TOOL.GRIPS.UP
+    sword.TextureId = Configuration.TOOL.ASSETS.TEXTURE_ID
 
     local success, handle = pcall(function()
         return InsertService:CreateMeshPartAsync(
-            "http://www.roblox.com/asset/?id=12221720",
+            Configuration.TOOL.ASSETS.MESH_ID,
             Enum.CollisionFidelity.Default,
             Enum.RenderFidelity.Automatic
         )
@@ -579,13 +567,13 @@ function Sworduh:_createSword(): Tool?
     end
 
     handle.Name = "Handle"
-    handle.TextureID = "http://www.roblox.com/asset/?id=12224218"
+    handle.TextureID = Configuration.TOOL.ASSETS.MESH_TEXTURE_ID
     handle.Parent = sword
 
     local hitbox = Instance.new("Part")
     hitbox.Name = "Hitbox"
-    hitbox.Size = Vector3.new(1, 0.8, 4)
-    hitbox.CFrame = handle.CFrame
+    hitbox.Size = Configuration.SWORD_PROPERTIES.HITBOX_SIZE
+    hitbox.CFrame = handle.CFrame * CFrame.new(Configuration.SWORD_PROPERTIES.HITBOX_OFFSET)
     hitbox.Transparency = 1
     hitbox.CanCollide = false
     hitbox.Parent = sword
@@ -604,18 +592,18 @@ function Sworduh:_createSword(): Tool?
     local sounds: {[string]: SoundData} = {
         slash = {
             name = "Slash",
-            id = "http://www.roblox.com/asset/?id=12222216",
-            volume = 0.7,
+            id = Configuration.TOOL.ASSETS.SOUND_IDS.SLASH,
+            volume = Configuration.SOUND_SETTINGS.SLASH.VOLUME,
         },
         lunge = {
             name = "Lunge",
-            id = "http://www.roblox.com/asset/?id=12222208",
-            volume = 0.6,
+            id = Configuration.TOOL.ASSETS.SOUND_IDS.LUNGE,
+            volume = Configuration.SOUND_SETTINGS.LUNGE.VOLUME,
         },
         unsheathe = {
             name = "Unsheathe",
-            id = "http://www.roblox.com/asset/?id=12222225",
-            volume = 1,
+            id = Configuration.TOOL.ASSETS.SOUND_IDS.UNSHEATHE,
+            volume = Configuration.SOUND_SETTINGS.UNSHEATHE.VOLUME,
         },
     }
 
