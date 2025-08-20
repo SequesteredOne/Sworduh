@@ -2,30 +2,33 @@
 
 Sworduh is a server-side sword system for Roblox. It is designed to handle giving swords to players, tracking damage, and cleaning up resources automatically. It uses the classic linked sword mechanics, including slash and lunge attacks.
 
-View the full documentation [here](https://sequesteredone.github.io/Sworduh/)
-## Setup
+ - View the full documentation [here](https://sequesteredone.github.io/Sworduh/)
 
-### Rojo (Recommended)
+## Install
 
-1.  **Prerequisites**: Make sure you have the [Rojo CLI](https://rojo.space/docs/installation/) installed on your system.
+### Wally (Recommended)
 
-2.  **Clone the Repository**: Get a local copy of the project files.
-    ```bash
-    git clone https://github.com/SequesteredOne/Sworduh.git
-    cd sworduh
-    ```
+- Add to your wally.toml:
 
-3.  **Build the Project**: You can build the project into a place file (`.rbxlx`) to open it directly in Studio.
-    ```bash
-    rojo build default.project.json -o "Sworduh.rbxlx"
-    ```
+```toml
+    [dependencies]
+    sequesteredone/sworduh = "0.1.1" # use latest version
+```
+- Or run:
 
-### Manual Installation
+`wally add "sequesteredone/sworduh@0.1.1"`
 
-If you prefer not to use Rojo, you can install the system manually.
+### Manual
 
-1.  Go to the [Releases](https://github.com/SequesteredOne/Sworduh/releases) page and download the latest `.rbxm` model file.
-2.  Drag the downloaded file into `ReplicatedStorage` in your Roblox Studio project.
+- Download the latest .rbxm from Releases:
+
+https://github.com/SequesteredOne/Sworduh/releases
+
+- Insert the model into ReplicatedStorage and require it:
+
+```lua
+local Sworduh = require(ReplicatedStorage.Sworduh)
+```
 
 ## Basic Usage
 
@@ -108,6 +111,4 @@ These are the main functions available in the `Sworduh` module.
 
 ## Configuration
 
-To change settings like damage values, attack speed, or sound effects, you can edit the `CONFIG` table at the top of the `src/Sworduh/SwordHandler.luau` script.
-
-(Note: This will be improved and made easier in future updates.)
+Runtime configuration can be found in src/Configuration.luau

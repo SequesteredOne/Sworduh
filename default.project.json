@@ -5,7 +5,7 @@
 
     "ReplicatedStorage": {
       "Sworduh": {
-        "$path": "src/Sworduh"
+        "$path": "src"
       }
     },
 
