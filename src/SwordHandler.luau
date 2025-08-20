@@ -17,6 +17,7 @@
 local Players = game:GetService("Players")
 local Debris = game:GetService("Debris")
 
+local Utils = require(script.Parent:WaitForChild("Utils"))
 local Configuration = require(script.Parent:WaitForChild("Configuration"))
 
 --[=[
@@ -24,11 +25,11 @@ local Configuration = require(script.Parent:WaitForChild("Configuration"))
     @within SwordHandler
 
     @field __index SwordHandler
-    @field new (player: Player, sword: Tool, lastDamagerCache: {[Player]: Player}): SwordHandler -- Constructor
+    @field new (target: Player | Model, sword: Tool, lastDamagerCache: {[Player | Model]: Player | Model}): SwordHandler -- Constructor
 
-    @field Player Player? -- The player who owns this sword instance.
+    @field Owner (Player | Model)? -- The player or NPC who owns this sword instance.
     @field SwordTool Tool? -- The [Tool](https://create.roblox.com/docs/reference/engine/classes/Tool) instance for the sword.
-    @field LastDamagerCache {[Player]: Player} -- A reference to the shared cache from the main [Sworduh](Sworduh) module.
+    @field LastDamagerCache {[Player | Model]: Player | Model} -- A reference to the shared cache from the main [Sworduh](Sworduh) module.
     @field ToolHandle BasePart?
     @field Hitbox BasePart?
     @field Sounds {[string]: Sound}
@@ -46,11 +47,11 @@ local Configuration = require(script.Parent:WaitForChild("Configuration"))
 
 export type SwordHandler = {
     __index: SwordHandler,
-    new: (player: Player, sword: Tool, lastDamagerCache: {[Player]: Player}) -> SwordHandler,
+    new: (player: Player | Model, sword: Tool, lastDamagerCache: {[Player | Model]: Player | Model}) -> SwordHandler,
 
-    Player: Player?,
+    Owner: Player | Model?,
     SwordTool: Tool?,
-    LastDamagerCache: {[Player]: Player},
+    LastDamagerCache: {[Player | Model]: Player | Model},
     ToolHandle: BasePart?,
     Hitbox: BasePart?,
     Sounds: {[string]: Sound},
@@ -69,7 +70,7 @@ export type SwordHandler = {
     _onEquipped: (self: SwordHandler) -> (),
     _onUnequipped: (self: SwordHandler) -> (),
     _onTouch: (self: SwordHandler, hit: BasePart) -> (),
-    _isPlayerAlive: (self: SwordHandler) -> boolean,
+    _isOwnerAlive: (self: SwordHandler) -> boolean,
     _playAnimation: (self: SwordHandler, animationName: string) -> (),
     _performSlash: (self: SwordHandler) -> (),
     _performLunge: (self: SwordHandler) -> (),
@@ -83,38 +84,35 @@ local SwordHandler: SwordHandler = {}:: SwordHandler
 SwordHandler.__index = SwordHandler
 
 --[=[
-    Creates a new sword handler for a player.
+    Creates a new sword handler for a player or NPC.
     
     :::warning
     This constructor should not be called directly. Use [Sworduh:Sword] instead.
     :::
     
-    @param player -- The player who owns this sword
+    @param target -- The player or NPC who owns this sword
     @param sword -- The sword tool instance
-    @param lastDamagerCache -- Shared cache for tracking damage between players
+    @param lastDamagerCache -- Shared cache for tracking damage between entities
     @return SwordHandler -- The new handler instance
-    @error "Player is invalid" -- When player is missing or has left
+    @error "Invalid target" -- When target is missing or has left/been destroyed
     @error "Invalid sword tool" -- When sword tool is missing or invalid
     @error "Essential sword components missing" -- When Handle or Hitbox are missing
-    @since v0.1.0
+    @since v0.2.0
 ]=]
 
-function SwordHandler.new(player: Player, sword: Tool, lastDamagerCache: {[Player]: Player}): SwordHandler
+function SwordHandler.new(owner: Player | Model, sword: Tool, lastDamagerCache: {[Player | Model]: Player | Model}): SwordHandler
     local self = setmetatable({} :: any, SwordHandler) :: SwordHandler
 
-    assert(player and player.Parent, "Player is invalid or has left the game")
+    assert(owner and owner.Parent, "Player is invalid or has left the game")
     assert(sword and sword.Parent, "Invalid sword tool")
 
-    self.Player = player
+    self.Owner = owner
     self.SwordTool = sword
     self.LastDamagerCache = lastDamagerCache
 
     local handle = sword:WaitForChild("Handle", Configuration.SYSTEM.COMPONENT_WAIT_TIME) :: BasePart
     local hitbox = sword:WaitForChild("Hitbox", Configuration.SYSTEM.COMPONENT_WAIT_TIME) :: BasePart
-
-    if not handle or not hitbox then
-        error("Essential sword components missing")
-    end
+    assert(handle and hitbox, "Essential sword components missing")
 
     self.ToolHandle = handle
     self.Hitbox = hitbox
@@ -125,7 +123,7 @@ function SwordHandler.new(player: Player, sword: Tool, lastDamagerCache: {[Playe
         if sound then
             self.Sounds[soundName] = sound
         else
-            warn("Missing sound:".. soundName.. " for player".. player.Name)
+            warn("Missing sound:".. soundName.. " for player".. owner.Name)
         end
     end
 
@@ -193,7 +191,7 @@ function SwordHandler:Destroy()
         self.SwordTool:Destroy()
     end
 
-    self.Player = nil
+    self.Owner = nil
     self.SwordTool = nil
     self.ToolHandle = nil
     self.Hitbox = nil
@@ -201,17 +199,17 @@ function SwordHandler:Destroy()
 end
 
 --[=[
-    Checks if the sword handler is active and the player is alive.
+    Checks if the sword handler is active and the owner is alive.
     
     A handler is considered active when:
     - It has not been destroyed
-    - The player is still in the game
-    - The player has a valid character
+    - The owner is still in the game
+    - The owner has a valid character
     - The character has required components (Humanoid, HumanoidRootPart)
 
     @return boolean -- `true` if the handler is active, `false` otherwise
     @tag utility
-    @since v0.1.0
+    @since v0.2.0
     
     ## Example
     
@@ -229,7 +227,7 @@ end
 ]=]
 
 function SwordHandler:IsActive(): boolean
-    return not self.IsDestroyed and self:_isPlayerAlive()
+    return not self.IsDestroyed and self:_isOwnerAlive()
 end
 
 -- Private
@@ -294,7 +292,7 @@ end
 ]=]
 
 function SwordHandler:_onActivated()
-    if self.IsDestroyed or self.IsAttacking or not self.IsToolEquipped or not self:_isPlayerAlive() then
+    if self.IsDestroyed or self.IsAttacking or not self.IsToolEquipped or not self:_isOwnerAlive() then
         return
     end
 
@@ -312,16 +310,16 @@ function SwordHandler:_onActivated()
 end
 
 --[=[
-    Called when the player equips their sword.
+    Called when the player or NPC equips their sword.
     
     Plays the unsheathe sound effect and updates the tool equipped state.
 
     @private
-    @since v0.1.0
+    @since v0.2.0
 ]=]
 
 function SwordHandler:_onEquipped()
-    if not self:_isPlayerAlive() or self.IsDestroyed then
+    if not self:_isOwnerAlive() or self.IsDestroyed then
         return
     end
 
@@ -334,12 +332,12 @@ function SwordHandler:_onEquipped()
 end
 
 --[=[
-    Called when the player unequips their sword.
+    Called when the player or NPC unequips their sword.
     
     Resets the sword to its default state, stopping any ongoing attacks.
 
     @private
-    @since v0.1.0
+    @since v0.2.0
 ]=]
 
 function SwordHandler:_onUnequipped()
@@ -366,62 +364,82 @@ end
 ]=]
 
 function SwordHandler:_onTouch(hit: BasePart)
-    if self.IsDestroyed or not self:_isPlayerAlive() or not self.Player then
+    if self.IsDestroyed or not self:_isOwnerAlive() or not self.Owner then
         return
     end
 
-    local targetCharacter = hit.Parent
-    if not targetCharacter then
+    local hitCharacter = hit.Parent
+    if not hitCharacter then
+        return
+    end
+    
+    local targetEntity: (Player | Model?) = nil
+    local targetPlayer = Players:GetPlayerFromCharacter(hitCharacter :: Model)
+     if targetPlayer then
+        targetEntity = targetPlayer
+    elseif hitCharacter:FindFirstChild("Humanoid") then
+        targetEntity = hitCharacter :: Model
+    end
+
+    if not targetEntity or targetEntity == self.Owner then
         return
     end
 
-    local targetPlayer = Players:GetPlayerFromCharacter(targetCharacter :: Model)
-    if not targetPlayer or targetPlayer == self.Player then
+    local myTeam = Utils.getTeam(self.Owner)
+    local theirTeam = Utils.getTeam(targetEntity)
+    if myTeam and theirTeam and myTeam == theirTeam then
         return
     end
 
-    if self.Player.Team and targetPlayer.Team and self.Player.Team == targetPlayer.Team then
+    local hitHumanoid = hitCharacter:FindFirstChildOfClass("Humanoid")
+    local hitRoot = hitCharacter:FindFirstChild("HumanoidRootPart") :: BasePart?
+    if not hitHumanoid or not hitRoot then
         return
     end
 
-    local humanoid = targetCharacter:FindFirstChildOfClass("Humanoid")
-    local targetRoot = targetCharacter:FindFirstChild("HumanoidRootPart") :: BasePart?
+    local myCharacter = Utils.getCharacter(self.Owner)
+    if not myCharacter then return end
+    local myRoot = myCharacter:FindFirstChild("HumanoidRootPart") :: BasePart?
+    if not myRoot then return end
 
-    if not humanoid or not targetRoot then
+    local deltaPosition = hitRoot.Position - myRoot.Position
+    local studCap = Configuration.COMBAT.STUD_CAP
+
+    if math.abs(deltaPosition.X) > studCap or 
+        math.abs(deltaPosition.Y) > studCap or 
+        math.abs(deltaPosition.Z) > studCap then
         return
     end
 
-    local playerRoot = self.Player.Character and self.Player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
-    if not playerRoot then
+    local distanceSquared = deltaPosition.X^2 + deltaPosition.Y^2 + deltaPosition.Z^2
+
+    if distanceSquared > studCap^2 then
         return
     end
 
-    local deltaPosition = targetRoot.Position - playerRoot.Position
-    local distanceSquared = deltaPosition:Dot(deltaPosition)
-    if distanceSquared > Configuration.COMBAT.STUD_CAP ^ 2 then
-        return
-    end
+    self.LastDamagerCache[targetEntity] = self.Owner
 
-    self.LastDamagerCache[targetPlayer] = self.Player
+    local damage = (self.Damage == Configuration.COMBAT.DAMAGE_VALUES.BASE)
+        and Configuration.COMBAT.DAMAGE_VALUES.PASSIVE
+        or self.Damage
 
-    local damage = self.Damage == Configuration.COMBAT.DAMAGE_VALUES.BASE and Configuration.COMBAT.DAMAGE_VALUES.PASSIVE or self.Damage
-    humanoid:TakeDamage(damage)
+    hitHumanoid:TakeDamage(damage)
 end
 
 --[=[
-    Checks if the handler's associated player is alive and in the game.
+    Checks if the handler's associated player or NPC is alive and in the game.
 
     @within SwordHandler
     @return boolean
     @private
 ]=]
 
-function SwordHandler:_isPlayerAlive(): boolean
-    if not self.Player or not self.Player.Parent then
+function SwordHandler:_isOwnerAlive(): boolean
+    if not self.Owner or not self.Owner.Parent then
         return false
     end
 
-    local character = self.Player.Character
+    local character = Utils.getCharacter(self.Owner)
     if not character or not character.Parent then
         return false
     end

@@ -4,7 +4,12 @@
 # Roblox Studio lock files
 /*.rbxlx.lock
 /*.rbxl.lock
+*.rbxm
+*.rbxmx
 sourcemap.json
+
+# Wally
+/Packages/
 
 # Docs
 /build/

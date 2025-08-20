@@ -4,16 +4,16 @@
 
     A comprehensive sword system using Roblox's linked sword mechanics.
 
-    Handles sword creation, management, and cleanup for players. Also manages character respawning, 
+    Handles sword creation, management, and cleanup for players and NPCs. Also manages character respawning, 
     player validation, and damage tracking.
 
     :::info
     This class should only be used on the server. It manages the server-side sword mechanics
-    and damage tracking for all players.
+    and damage tracking for all players and NPCs.
     :::
 
     :::warning
-    Currently, players will automatically recieve a sword when respawning.
+    Currently, players will automatically recieve a sword when respawning. NPCs do not auto-recieve swords.
 
     Call the [Unsword](#Unsword) function to disable this. In the future, this will be togglable. 
     :::
@@ -31,20 +31,24 @@
     -- Give a sword to a specific player
     local sword = Sworduh:Sword(player)
 
+    -- Give a sword to an NPC
+    local npcModel = workspace:WaitForChild("NPC")
+    local npcSword = Sworduh:Sword(npcModel)
+
     -- Check if the sword is still active
     if sword and sword:IsActive() then
         print("Sword is active")
     end
 
-    -- Give a sword to all valid players
+    -- Give a sword to all valid players (Does not affect NPCs)
     Sworduh:SwordAll()
 
-    -- Remove a specific player's sword
+    -- Remove a specific entity's sword
     Sworduh:Unsword(player)
     -- Alternatively, using the returned sword handler
     sword:Destroy()
 
-    -- Get the last player to damage a specific player (useful for kill tracking)
+    -- Get the last player to damage a specific target (useful for kill tracking)
     local killer = Sworduh:GetKiller(deadPlayer)
     ```
 
@@ -68,12 +72,13 @@
     end)
     ```
 
-    @since v0.1.0
+    @since v0.2.0
 ]=]
 
 local Players = game:GetService("Players")
 local InsertService = game:GetService("InsertService")
 
+local Utils = require(script:WaitForChild("Utils"))
 local Configuration = require(script:WaitForChild("Configuration"))
 local SwordHandler = require(script:WaitForChild("SwordHandler"))
 
@@ -86,19 +91,19 @@ export type SwordHandler = SwordHandler.SwordHandler
     @field ClassName string
     @field __index Sworduh
     
-    @field SwordObjects {[Player]: SwordHandler}
-    @field LastDamagerCache {[Player]: Player}, -- A cache mapping players to the last player who damaged them.
+    @field SwordObjects {[Player | Model]: SwordHandler}
+    @field LastDamagerCache {[Player | Model]: Player | Model}, -- A cache mapping entities to the last entity who damaged them.
     @field Connections {[string]: RBXScriptConnection | {Disconnect: () -> ()}},
 
-    @field Sword (self: Sworduh, player: Player) -> SwordHandler?,
+    @field Sword (self: Sworduh, target: Player | Model) -> SwordHandler?,
     @field SwordAll (self: Sworduh) -> (),
-    @field Unsword (self: Sworduh, player: Player) -> boolean,
+    @field Unsword (self: Sworduh, target: Player | Model) -> boolean,
     @field UnswordAll (self: Sworduh) -> (),
-    @field GetKiller: (self: Sworduh, player: Player) -> Player?,
+    @field GetKiller: (self: Sworduh, target: Player | Model) -> (Player | Model)?,
     @field Cleanup: (self: Sworduh) -> (),
 
-    @field _setupPlayerConnections: (self: Sworduh, player: Player) -> (),
-    @field _cleanupPlayerSword: (self: Sworduh, player: Player) -> (),
+    @field _setupEntityConnections: (self: Sworduh, target: Player | Model) -> (),
+    @field _cleanupEntitySword: (self: Sworduh, target: Player | Model) -> (),
     @field _createSword: (self: Sworduh) -> Tool?,
 ]=]
 
@@ -106,37 +111,37 @@ export type Sworduh = {
     ClassName: string,
     __index: Sworduh,
     
-    SwordObjects: {[Player]: SwordHandler},
-    LastDamagerCache: {[Player]: Player},
+    SwordObjects: {[Player | Model]: SwordHandler},
+    LastDamagerCache: {[Player | Model]: Player | Model},
     Connections: {[string]: RBXScriptConnection | {Disconnect: () -> ()}},
 
-    Sword: (self: Sworduh, player: Player) -> SwordHandler?,
+    Sword: (self: Sworduh, target: Player | Model) -> SwordHandler?,
     SwordAll: (self: Sworduh) -> (),
-    Unsword: (self: Sworduh, player: Player) -> boolean,
+    Unsword: (self: Sworduh, target: Player | Model) -> boolean,
     UnswordAll: (self: Sworduh) -> (),
-    GetKiller: (self: Sworduh, player: Player) -> Player?,
+    GetKiller: (self: Sworduh, target: Player | Model) -> (Player | Model)?,
     Cleanup: (self: Sworduh) -> (),
-    _setupPlayerConnections: (self: Sworduh, player: Player) -> (),
-    _cleanupPlayerSword: (self: Sworduh, player: Player) -> (),
+    _setupEntityConnections: (self: Sworduh, target: Player | Model) -> (),
+    _cleanupEntitySword: (self: Sworduh, target: Player | Model) -> (),
     _createSword: (self: Sworduh) -> Tool?,
 }
 
 --[=[
-    @prop SwordObjects {[Player]: SwordHandler}
+    @prop SwordObjects {[Player | Model]: SwordHandler}
     @within Sworduh
     @readonly
     
-    Active sword handlers for each player. This table maps each player to their corresponding
+    Active sword handlers for each entity (player or NPC). This table maps each entity to their corresponding
     sword handler instance.
 ]=]
 
 --[=[
-    @prop LastDamagerCache {[Player]: Player}
+    @prop LastDamagerCache {[Player | Model]: Player | Model}
     @within Sworduh
     @readonly
     
-    Cache tracking who last damaged each player. This is essential for kill tracking systems
-    and leaderboard functionality. The cache automatically validates that killers are still
+    Cache tracking who last damaged each entity. This is essential for kill tracking systems
+    and leaderboard functionality. The cache automatically checks that killers are still
     valid before returning them.
 ]=]
 
@@ -146,27 +151,27 @@ export type Sworduh = {
     @readonly
     
     Active connections for cleanup. This table stores all event connections created by the
-    system, allowing for proper cleanup when the system is shut down or when players leave.
+    system, allowing for proper cleanup when the system is shut down or when entities leave.
 ]=]
 
 local Sworduh: Sworduh = {} :: Sworduh
 Sworduh.ClassName = "Sworduh"
 Sworduh.__index = Sworduh
 
-Sworduh.SwordObjects = {} :: {[Player]: SwordHandler}
-Sworduh.LastDamagerCache = {} :: {[Player]: Player}
+Sworduh.SwordObjects = {} :: {[Player | Model]: SwordHandler}
+Sworduh.LastDamagerCache = {} :: {[Player | Model]: Player | Model}
 Sworduh.Connections = {} :: {[string]: RBXScriptConnection | {Disconnect: () -> ()}}
 
 -- Public Methods
 
 --[=[
-    Creates and equips a sword for the specified player.
+    Creates and equips a sword for the specified player or NPC.
 
     Automatically handles character respawning and player validation.
-    If the player already has a sword, the existing sword handler is returned.
+    If the entity already has a sword, the existing sword handler is returned.
 
     :::tip
-    This method is safe to call multiple times for the same player - it will return 
+    This method is safe to call multiple times for the same entity - it will return 
     the existing sword if one is already equipped.
     :::
 
@@ -175,12 +180,12 @@ Sworduh.Connections = {} :: {[string]: RBXScriptConnection | {Disconnect: () -> 
     the return value before using the sword handler.
     :::
 
-    @param player -- The player to equip with a sword
+    @param target -- The entity to equip with a sword
     @return SwordHandler? -- The created sword handler, or nil if failed
     @yields -- May yield while waiting for character to load
-    @error "Invalid player" -- When player is missing or has left the game
+    @error "Invalid target" -- When target is missing or has left the game
     @tag core
-    @since v0.1.0
+    @since v0.2.0
     
     ## Example
     
@@ -197,27 +202,30 @@ Sworduh.Connections = {} :: {[string]: RBXScriptConnection | {Disconnect: () -> 
     ```
 ]=]
 
-function Sworduh:Sword(player: Player): SwordHandler?
-    if not player or not player.Parent then
-        warn("Attempted to sword a missing or invalid player.")
+function Sworduh:Sword(target: Player | Model): SwordHandler?
+    if not target or not target.Parent then
+        warn("Attempted to sword a missing or invalid target.")
         return nil
     end
 
-	local character: Model? = player.Character
-    if not character then
-        local success, result = pcall(function()
-            return player.CharacterAdded:Wait()
-        end)
-        if not success then
-            warn("Failed to get character for ".. player.Name.. " |\n".. tostring(result))
-            return nil
+	local character: Model?
+
+    if Utils.isPlayer(target) then
+        character = (target :: Player).Character
+
+        if not character then
+            local success, result = pcall(function()
+                return (target :: Player).CharacterAdded:Wait()
+            end)
+            if not success then
+                warn("Failed to get character for ".. target.Name.. " |\n".. tostring(result))
+                return nil
+            end
+
+            character = result
         end
 
-        character = result
-    end
-
-    if character then
-        if not character.Parent then
+        if character and not character.Parent then
             local connection: RBXScriptConnection?
             local timeOutConnection: thread?
             local characterReady: boolean = false
@@ -232,7 +240,7 @@ function Sworduh:Sword(player: Player): SwordHandler?
 
             timeOutConnection = task.delay(Configuration.CHARACTER.TIMEOUT, function()
                 if connection then connection:Disconnect() end
-                warn(player.Name, "timeout while waiting for character to be parented.")
+                warn(target.Name, "timeout while waiting for character to be parented.")
             end)
 
             while not characterReady and connection and connection.Connected do
@@ -243,49 +251,58 @@ function Sworduh:Sword(player: Player): SwordHandler?
                 return nil
             end
         end
+    else
+        character = target :: Model
+        assert(character, "Target must be a Model")
 
-        local humanoid = character:WaitForChild("Humanoid", Configuration.CHARACTER.TIMEOUT)
-        local humanoidRootPart = character:WaitForChild("HumanoidRootPart", Configuration.CHARACTER.TIMEOUT)
-        
-        if not humanoid or not humanoidRootPart then
-            warn("Character components not ready for", player.Name)
+        if not character:FindFirstChild("Humanoid") then
+            warn("NPC missing Humanoid: ", target.Name)
             return nil
         end
+    end
+
+    assert(character, "Character is nil")
+    local humanoid = character:WaitForChild("Humanoid", Configuration.CHARACTER.TIMEOUT)
+    local humanoidRootPart = character:WaitForChild("HumanoidRootPart", Configuration.CHARACTER.TIMEOUT)
+    
+    if not humanoid or not humanoidRootPart then
+        warn("Character components not ready for", target.Name)
+        return nil
     end
 
     if not self.SwordObjects then
         self.SwordObjects = {}
     end
 
-	local existingSword = self.SwordObjects[player]
+	local existingSword = self.SwordObjects[target]
 	if existingSword then
         if existingSword.SwordTool and existingSword.SwordTool.Parent == character then
             return existingSword
         end
 
-        self:_cleanupPlayerSword(player)
+        self:_cleanupEntitySword(target)
 	end
 
     local swordTool: Tool? = self:_createSword()
     if not swordTool then
-        warn("Failed to create sword tool for", player.Name)
+        warn("Failed to create sword tool for", target.Name)
         return nil
     end
 
     swordTool.Parent = character
 
     local success, swordObject = pcall(function()
-        return SwordHandler.new(player, swordTool, self.LastDamagerCache)
+        return SwordHandler.new(target, swordTool, self.LastDamagerCache)
     end)
 
     if not success then
-        warn("Failed to create sword handler for", player.Name, " |\n", swordObject)
+        warn("Failed to create sword handler for", target.Name, " |\n", swordObject)
         if swordTool then swordTool:Destroy() end
         return nil
     end
 
-    self.SwordObjects[player] = swordObject
-    self:_setupPlayerConnections(player)
+    self.SwordObjects[target] = swordObject
+    self:_setupEntityConnections(target)
 
     return swordObject
 end
@@ -294,6 +311,10 @@ end
     Gives a sword to all players currently in the game.
     
     This method calls [Sworduh:Sword] for each player currently in the server.
+
+    :::warning
+    This does not affect NPCs.
+    :::
     
     :::warning
     Players who join after this method is called will not automatically receive swords.
@@ -301,7 +322,7 @@ end
     :::
     
     @tag utility
-    @since v0.1.0
+    @since v0.2.0
 ]=]
 
 function Sworduh:SwordAll()
@@ -315,22 +336,22 @@ function Sworduh:SwordAll()
 end
 
 --[=[
-    Removes a player's sword and cleans up all associated data.
+    Removes an entity's sword and cleans up all associated data.
 
-    @param player -- The player whose sword should be removed
+    @param target -- The player whose sword should be removed
     @return boolean -- `true` if a sword was removed, `false` if no sword was found
     @tag core
-    @since v0.1.0
+    @since v0.2.0
 ]=]
 
-function Sworduh:Unsword(player: Player): boolean
-    if not player then
+function Sworduh:Unsword(target: Player | Model): boolean
+    if not target then
         return false
     end
 
-    local swordObject = self.SwordObjects[player]
+    local swordObject = self.SwordObjects[target]
 	if swordObject then
-        self:_cleanupPlayerSword(player)
+        self:_cleanupEntitySword(target)
         return true
     end
 
@@ -338,28 +359,28 @@ function Sworduh:Unsword(player: Player): boolean
 end
 
 --[=[
-    Removes swords from all players in the game.
+    Removes swords from all entities in the game.
     
-    This method calls [Sworduh:Unsword] for every player who currently has a sword.
+    This method calls [Sworduh:Unsword] for every entity who currently has a sword.
     Useful for ending game modes or resetting the server state.
     
-    @since v0.1.0
+    @since v0.2.0
 ]=]
 
 function Sworduh:UnswordAll()
     -- Create a copy to avoid modification during iteration
-    local players: {Player} = {}
-    for player, _ in pairs(self.SwordObjects) do
-        table.insert(players, player)
+    local targets: {Player | Model} = {}
+    for target, _ in pairs(self.SwordObjects) do
+        table.insert(targets, target)
     end
 
-    for i = 1, #players do
-        self:Unsword(players[i])
+    for i = 1, #targets do
+        self:Unsword(targets[i])
     end
 end
 
 --[=[
-    Returns the last player that damaged the specified player.
+    Returns the last entity that damaged the specified target.
     
     This method is essential for kill tracking, leaderboard systems, and reward distribution.
     The damage cache automatically validates that the killer is still in the game and has
@@ -370,10 +391,10 @@ end
     so you can trust that any returned player is still valid.
     :::
 
-    @param player -- The player to find the killer for
-    @return Player? -- The player who last damaged the specified player, or nil if no valid killer exists
+    @param target -- The entity to find the killer for
+    @return (Player | Model)? -- The entity who last damaged the specified player, or nil if no valid killer exists
     @tag utility
-    @since v0.1.0
+    @since v0.2.0
     
     ## Example
     
@@ -397,28 +418,35 @@ end
     ```
 ]=]
 
-function Sworduh:GetKiller(player: Player): Player?
-    if not player then
+function Sworduh:GetKiller(target: Player | Model): Player?
+    if not target then
         return nil
     end
-    local killer = self.LastDamagerCache[player]
-
+    local killer = self.LastDamagerCache[target]
     if not killer then
         return nil
     end
 
-    if killer.Character and killer.Character.Parent and Players:GetPlayerFromCharacter(killer.Character) then
-        return killer
+    if Utils.isPlayer(killer) then
+        local player = killer :: Player
+        if player.Character and player.Character.Parent and Players:GetPlayerFromCharacter(player.Character) then
+            return killer
+        end
     else
-        self.LastDamagerCache[player] = nil
-        return nil
+        local model = killer :: Model
+        if model.Parent and model:FindFirstChild("Humanoid") then
+            return killer
+        end
     end
+    
+    self.LastDamagerCache[target] = nil
+    return nil
 end
 
 --[=[
     Cleans up the entire sword system.
 
-    Removes all swords, clears internal caches, and disconnects all event connections.
+    Removes all swords from players and NPCs, clears internal caches, and disconnects all event connections.
     This method should always be called when shutting down the system to prevent memory leaks.
     
     :::warning
@@ -426,7 +454,7 @@ end
     you'll need to re-establish any swords for continuing gameplay.
     :::
     
-    @since v0.1.0
+    @since v0.2.0
     
     ## Example
     
@@ -458,18 +486,21 @@ end
 -- Private Methods
 
 --[=[
-    Sets up event connections for a player.
+    Sets up event connections for an entity.
     
-    Creates connections for character removal and player leaving events to automatically
-    clean up sword data when appropriate.
+    Creates connections for character removal and entity destruction events to automatically 
+    clean up sword data when appropriate. For players, connects to CharacterRemoving.
+    For NPCs, connects to AncestryChanged.
 
-    @param player -- The player to set up connections for
+    @param target -- The player or NPC to set up connections for
     @private
-    @since v0.1.0
+    @since v0.2.0
 ]=]
 
-function Sworduh:_setupPlayerConnections(player: Player)
-    local connectionKey: string = "PlayerEvents_".. player.UserId
+function Sworduh:_setupEntityConnections(target: Player | Model)
+    local connectionKey: string = if Utils.isPlayer(target) 
+        then "PlayerEvents_".. (target :: Player).UserId
+        else "NPCEvents_".. tostring(target)
 
     local existingConnection = self.Connections[connectionKey]
     if existingConnection then
@@ -482,13 +513,15 @@ function Sworduh:_setupPlayerConnections(player: Player)
 
     local connections: {RBXScriptConnection} = {}
 
-    table.insert(connections, player.CharacterRemoving:Connect(function()
-        self:_cleanupPlayerSword(player)
-    end))
+    if Utils.isPlayer(target) then
+        table.insert(connections, (target :: Player).CharacterRemoving:Connect(function()
+            self:_cleanupEntitySword(target)
+        end)) 
+    end
 
-    table.insert(connections, player.AncestryChanged:Connect(function()
-        if not player.Parent then
-            self:_cleanupPlayerSword(player)
+    table.insert(connections, target.AncestryChanged:Connect(function()
+        if not target.Parent then
+            self:_cleanupEntitySword(target)
         end
     end))
 
@@ -504,28 +537,31 @@ function Sworduh:_setupPlayerConnections(player: Player)
 end
 
 --[=[
-    Cleans up all data associated with a player's sword.
+    Cleans up all data associated with a entity's sword.
     
-    Destroys the sword handler, removes the player from tracking caches,
-    and disconnects any player-specific event connections.
+    Destroys the sword handler, removes the entity from tracking caches,
+    and disconnects any entity-specific event connections.
 
-    @param player -- The player whose sword data should be cleaned up
+    @param target -- The player or NPC whose sword data should be cleaned up
     @private
-    @since v0.1.0
+    @since v0.2.0
 ]=]
 
-function Sworduh:_cleanupPlayerSword(player: Player)
-    local swordObject = self.SwordObjects[player]
+function Sworduh:_cleanupEntitySword(target: Player | Model)
+    local swordObject = self.SwordObjects[target]
     if swordObject then
         if swordObject.Destroy then
             swordObject:Destroy()
         end
-        self.SwordObjects[player] = nil
+        self.SwordObjects[target] = nil
     end
 
-    self.LastDamagerCache[player] = nil
+    self.LastDamagerCache[target] = nil
 
-    local connectionKey: string = "PlayerEvents_".. player.UserId
+    local connectionKey: string = if Utils.isPlayer(target) 
+        then "PlayerEvents_".. (target :: Player).UserId
+        else "NPCEvents_".. tostring(target)
+
     local connection = self.Connections[connectionKey]
     if connection then
         if typeof(connection) == "RBXScriptConnection" and connection.Connected then
