@@ -12,11 +12,11 @@ Sworduh is a server-side sword system for Roblox. It is designed to handle givin
 
 ```toml
     [dependencies]
-    sequesteredone/sworduh = "0.1.1" # use latest version
+    sequesteredone/sworduh = "0.2.0" # use latest version
 ```
 - Or run:
 
-`wally add "sequesteredone/sworduh@0.1.1"`
+`wally add "sequesteredone/sworduh@0.2.0"`
 
 ### Manual
 
