@@ -90,7 +90,7 @@ SwordHandler.__index = SwordHandler
     This constructor should not be called directly. Use [Sworduh:Sword] instead.
     :::
     
-    @param target -- The player or NPC who owns this sword
+    @param owner -- The player or NPC who owns this sword
     @param sword -- The sword tool instance
     @param lastDamagerCache -- Shared cache for tracking damage between entities
     @return SwordHandler -- The new handler instance
