@@ -9,12 +9,6 @@
       }
     },
 
-    "ServerScriptService": {
-      "DummyTest": {
-        "$path": "DELETE_THIS_BEFORE_COMMIT"
-      }
-    },
-
     "Workspace": {
       "$properties": {
         "FilteringEnabled": true

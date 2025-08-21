@@ -12,10 +12,15 @@
     and damage tracking for all players and NPCs.
     :::
 
-    :::warning
-    Currently, players will automatically recieve a sword when respawning. NPCs do not auto-recieve swords.
+    :::info
+    Players can automatically recieve a sword when they respawn.
+    This behavior is controlled by [Configuration.CHARACTER.GIVE_SWORD_ON_SPAWN](./Configuration#CHARACTER)
 
-    Call the [Unsword](#Unsword) function to disable this. In the future, this will be togglable. 
+    - When enabled, a CharacterAdded connection for each player will re-call the [Sword()](./Sworduh#Sword) method if they previously had a sword.
+    It will not give a sword to players who did not have a sword.
+    - Calling [Unsword()](./Sworduh#Unsword) disconnects the CharacterAdded connection for the provided player. 
+    (They will not recieve a sword on respawn until [Sword()](./Sworduh#Sword) is called again)
+    - NPCs do not automatically recieve swords on respawn. 
     :::
 
     :::warning
@@ -94,6 +99,7 @@ export type SwordHandler = SwordHandler.SwordHandler
     @field SwordObjects {[Player | Model]: SwordHandler}
     @field LastDamagerCache {[Player | Model]: Player | Model}, -- A cache mapping entities to the last entity who damaged them.
     @field Connections {[string]: RBXScriptConnection | {Disconnect: () -> ()}},
+    @field RespawnConnections {[Player]: RBXScriptconnection}
 
     @field Sword (self: Sworduh, target: Player | Model) -> SwordHandler?,
     @field SwordAll (self: Sworduh) -> (),
@@ -104,6 +110,8 @@ export type SwordHandler = SwordHandler.SwordHandler
 
     @field _setupEntityConnections: (self: Sworduh, target: Player | Model) -> (),
     @field _cleanupEntitySword: (self: Sworduh, target: Player | Model) -> (),
+    @field _setupPlayerRespawnConnections (self: Sworduh, target: Player) -> ()
+    @field _cleanupPlayerRespawnConnection (self: Sworduh, target: Player) -> ()
     @field _createSword: (self: Sworduh) -> Tool?,
 ]=]
 
@@ -113,6 +121,7 @@ export type Sworduh = {
     
     SwordObjects: {[Player | Model]: SwordHandler},
     LastDamagerCache: {[Player | Model]: Player | Model},
+    RespawnConnections: {[Player]: RBXScriptConnection},
     Connections: {[string]: RBXScriptConnection | {Disconnect: () -> ()}},
 
     Sword: (self: Sworduh, target: Player | Model) -> SwordHandler?,
@@ -122,6 +131,8 @@ export type Sworduh = {
     GetKiller: (self: Sworduh, target: Player | Model) -> (Player | Model)?,
     Cleanup: (self: Sworduh) -> (),
     _setupEntityConnections: (self: Sworduh, target: Player | Model) -> (),
+    _setupPlayerRespawnConnections: (self: Sworduh, target: Player) -> (),
+    _cleanupPlayerRespawnConnection: (self: Sworduh, target: Player) -> (),
     _cleanupEntitySword: (self: Sworduh, target: Player | Model) -> (),
     _createSword: (self: Sworduh) -> Tool?,
 }
@@ -154,6 +165,17 @@ export type Sworduh = {
     system, allowing for proper cleanup when the system is shut down or when entities leave.
 ]=]
 
+--[=[
+    @prop RespawnConnections {[Player]: RBXScriptConnection}
+    @within Sworduh
+    @readonly
+
+    Per-player CharacterAdded connections.
+    When [Configuration.CHARACTER.GIVE_SWORD_ON_SPAWN](./Configuration#CHARACTER) is true, these connections recreate
+    the player's sword after they respawn. The connection is created the first time [Sword()](./Sworduh#Sword) is called.
+    It is removed by [Unsword()](./Sworduh#Unsword) and during [Cleanup()](./Sworduh#Cleanup).
+]=]
+
 local Sworduh: Sworduh = {} :: Sworduh
 Sworduh.ClassName = "Sworduh"
 Sworduh.__index = Sworduh
@@ -161,13 +183,17 @@ Sworduh.__index = Sworduh
 Sworduh.SwordObjects = {} :: {[Player | Model]: SwordHandler}
 Sworduh.LastDamagerCache = {} :: {[Player | Model]: Player | Model}
 Sworduh.Connections = {} :: {[string]: RBXScriptConnection | {Disconnect: () -> ()}}
+Sworduh.RespawnConnections = {} :: {[Player]: RBXScriptConnection}
 
 -- Public Methods
 
 --[=[
     Creates and equips a sword for the specified player or NPC.
 
-    Automatically handles character respawning and player validation.
+    When [Configuration.CHARACTER.GIVE_SWORD_ON_SPAWN](./Configuration#CHARACTER) is true, player's who this method is called on
+    will automatically recieve a new sword when respawning. This is disabled by calling [Unsword()](./Sworduh#Unsword), or setting the configuration to false.
+    NPCs are not affected by this, and do not recieve swords on respawn. 
+
     If the entity already has a sword, the existing sword handler is returned.
 
     :::tip
@@ -217,7 +243,7 @@ function Sworduh:Sword(target: Player | Model): SwordHandler?
             local success, result = pcall(function()
                 return (target :: Player).CharacterAdded:Wait()
             end)
-            if not success then
+            if not success or not result or not target.Parent then
                 warn("Failed to get character for ".. target.Name.. " |\n".. tostring(result))
                 return nil
             end
@@ -303,6 +329,7 @@ function Sworduh:Sword(target: Player | Model): SwordHandler?
 
     self.SwordObjects[target] = swordObject
     self:_setupEntityConnections(target)
+    self:_setupPlayerRespawnConnections(target)
 
     return swordObject
 end
@@ -338,6 +365,11 @@ end
 --[=[
     Removes an entity's sword and cleans up all associated data.
 
+    For players, this also removes their respawn connection. 
+    This means they will no longer recieve a sword when respawning, even if 
+    [Configuration.CHARACTER.GIVE_SWORD_ON_SPAWN](./Configuration#CHARACTER) is true.
+    Re-call [Sword()](./Sworduh#Sword) to re-establish this connection. 
+
     @param target -- The player whose sword should be removed
     @return boolean -- `true` if a sword was removed, `false` if no sword was found
     @tag core
@@ -349,13 +381,10 @@ function Sworduh:Unsword(target: Player | Model): boolean
         return false
     end
 
-    local swordObject = self.SwordObjects[target]
-	if swordObject then
-        self:_cleanupEntitySword(target)
-        return true
-    end
+    self:_cleanupEntitySword(target)
+    self:_cleanupPlayerRespawnConnection(target)
 
-    return false
+    return self.SwordObjects[target] == nil
 end
 
 --[=[
@@ -446,7 +475,10 @@ end
 --[=[
     Cleans up the entire sword system.
 
-    Removes all swords from players and NPCs, clears internal caches, and disconnects all event connections.
+    - Removes all swords from players and NPCs
+    - Clears internal caches
+    - Disconnects all event connections, including per-entity events and per-player respawn connections.
+
     This method should always be called when shutting down the system to prevent memory leaks.
     
     :::warning
@@ -481,6 +513,13 @@ function Sworduh:Cleanup()
         end
     end
     table.clear(self.Connections)
+
+    for key, connection in pairs(self.RespawnConnections) do
+        if connection then
+            connection:Disconnect()
+        end
+    end
+    table.clear(self.RespawnConnections)
 end
 
 -- Private Methods
@@ -570,6 +609,56 @@ function Sworduh:_cleanupEntitySword(target: Player | Model)
             connection.Disconnect()
         end
         self.Connections[connectionKey] = nil
+    end
+end
+
+--[=[
+    Sets up the player's respawn connection.
+
+    Creates a CharacterAdded connection for the provided player.
+    On respawn, if the [Configuration.CHARACTER.GIVE_SWORD_ON_SPAWN](./Configuration#CHARACTER) is true,
+    a new sword will be given to the player.
+
+    This connection is created when you call [Sword()](./Sworduh#Sword) and is disconnected by [Unsword()](./Sworduh#Unsword) or [Cleanup()](./Sworduh#Cleanup)
+
+    @param target Player
+    @private
+    @since v0.2.0
+]=]
+
+function Sworduh:_setupPlayerRespawnConnections(target: Player)
+    if Utils.isPlayer(target) and not self.RespawnConnections[target] then
+        self.RespawnConnections[target] = (target :: Player).CharacterAdded:Connect(function(character)
+            print(Configuration.CHARACTER.GIVE_SWORD_ON_SPAWN)
+            if Configuration.CHARACTER.GIVE_SWORD_ON_SPAWN then
+                self:Unsword(target)
+
+                if character and character.Parent then
+                    self:Sword(target)
+                end
+            end
+        end)
+    end
+end
+
+--[=[
+    Removes the provided player's respawn connection.
+
+    After this is called, the player will not automatically receive a sword on
+    future respawns (regardless of the [Configuration.CHARACTER.GIVE_SWORD_ON_SPAWN](./Configuration#CHARACTER) configuration)
+    until [Sword()](./Sworduh#Sword) is called again.
+
+    @param target Player
+    @private
+    @since v0.2.0
+]=]
+
+function Sworduh:_cleanupPlayerRespawnConnection(target: Player)
+    local connection = self.RespawnConnections[target]
+
+    if connection then
+        connection:Disconnect()
+        self.RespawnConnections[target] = nil
     end
 end
 

@@ -22,6 +22,7 @@
     
     .TIMEOUT number -- Maximum time to wait for character components (seconds)
     .POLL_INTERVAL number -- How often to check if character is ready (seconds)
+    .GIVE_SWORD_ON_SPAWN boolean -- When true, players (not NPCs) will automatically recieve a sword on respawn
 ]=]
 
 --[=[
@@ -219,6 +220,7 @@ local Configuration = {
     CHARACTER = {
         TIMEOUT = 5, -- Maximum time to wait for character components (seconds)
         POLL_INTERVAL = 0.1, -- How often to check if character is ready (seconds)
+        GIVE_SWORD_ON_SPAWN = true,
     },
 
     SYSTEM = {

@@ -98,6 +98,27 @@ game:BindToClose(function()
 end)
 ```
 
+## Respawn Behavior
+
+By default, players automatically recieve a new sword when they respawn.
+This is controlled by the configuration:
+```lua
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Configuration = require(ReplicatedStorage.Sworduh.Configuration)
+
+Configuration.CHARACTER.GIVE_SWORD_ON_SPAWN = true -- default
+```
+
+If you set this to false, players will not recieve a sword on respawn. 
+You will need to call Sworduh:Sword(player) again.
+
+Calling Sworduh:Unsword(player) removes both the current sword,
+and the respawn connection for the provided player.
+This means they will no longer auto-recieve a sword again until Sworduh:Sword(player) again.
+
+**NPCs do not automatically recieve swords on respawn.**
+
+
 ## API
 
 These are the main functions available in the `Sworduh` module.
