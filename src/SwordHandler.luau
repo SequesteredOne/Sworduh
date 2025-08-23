@@ -21,6 +21,46 @@ local Utils = require(script.Parent:WaitForChild("Utils"))
 local Configuration = require(script.Parent:WaitForChild("Configuration"))
 
 --[=[
+    @interface SwordHandlerState
+    @within SwordHandler
+
+    A comprehensive snapshot of the sword handler's current state.
+
+    @field Owner (Player | Model)? -- The player or NPC who owns this sword instance.
+    @field Damage number -- The current damage value of the sword.
+    @field IsAttacking boolean -- True when the sword is currently in an attack animation.
+    @field IsToolEquipped boolean -- True if the tool is currently equipped.
+    @field IsDestroyed boolean -- True if the handler has been destroyed.
+    @field IsActive boolean -- True if the handler is active and the owner is alive.
+    @field LastAttackTime number -- The os.clock() timestamp of the last attack.
+    @field TimeSinceLastAttack number -- Time elapsed since the last attack in seconds.
+    @field IsInLungeWindow boolean -- True if currently within the lunge activation window.
+    @field CurrentGrip "UP" | "OUT" -- The current grip state of the sword.
+    @field CanAttack boolean -- True if the sword can currently perform an attack.
+    @field NextAttackType "slash" | "lunge" -- What type of attack would be performed if activated now.
+    @field RemainingAttackTime number -- If attacking, how much time is left in the attack (0 if not attacking).
+    @field ActiveTaskCount number -- Number of active scheduled tasks.
+    @field CurrentAttackType "slash" | "lunge" | nil -- The type of attack currently being performed.
+]=]
+export type SwordHandlerState = {
+    Owner: Player | Model?,
+    Damage: number,
+    IsAttacking: boolean,
+    IsToolEquipped: boolean,
+    IsDestroyed: boolean,
+    IsActive: boolean,
+    LastAttackTime: number,
+    TimeSinceLastAttack: number,
+    IsInLungeWindow: boolean,
+    CurrentGrip: "UP" | "OUT",
+    CanAttack: boolean,
+    NextAttackType: "slash" | "lunge",
+    RemainingAttackTime: number,
+    ActiveTaskCount: number,
+    CurrentAttackType: "slash" | "lunge" | nil,
+}
+
+--[=[
     @interface SwordHandler
     @within SwordHandler
 
@@ -40,9 +80,15 @@ local Configuration = require(script.Parent:WaitForChild("Configuration"))
     @field IsDestroyed boolean
     @field Connections {[string]: RBXScriptConnection}
     @field ActiveTasks {thread} -- List of active threads for scheduled tasks.
+    @field CurrentGrip "UP" | "OUT" -- The current grip state of the sword.
+    @field AttackStartTime number -- When the current attack started (0 if not attacking).
+    @field CurrentAttackType "slash" | "lunge" | nil -- The type of attack currently being performed.
 
     @field Destroy (self: SwordHandler)
     @field IsActive (self: SwordHandler): boolean
+    @field TrySlash (self: SwordHandler): boolean
+    @field TryLunge (self: SwordHandler): boolean
+    @field GetState (self: SwordHandler): SwordHandlerState
 ]=]
 
 export type SwordHandler = {
@@ -62,9 +108,15 @@ export type SwordHandler = {
     IsDestroyed: boolean,
     Connections: {[string]: RBXScriptConnection},
     ActiveTasks: {thread},
+    CurrentGrip: "UP" | "OUT",
+    AttackStartTime: number,
+    CurrentAttackType: "slash" | "lunge" | nil,
 
     Destroy: (self: SwordHandler) -> (),
     IsActive: (self: SwordHandler) -> boolean,
+    TrySlash: (self: SwordHandler) -> boolean,
+    TryLunge: (self: SwordHandler) -> boolean,
+    GetState: (self: SwordHandler) -> SwordHandlerState,
     _initialize: (self: SwordHandler) -> (),
     _onActivated: (self: SwordHandler) -> (),
     _onEquipped: (self: SwordHandler) -> (),
@@ -132,6 +184,9 @@ function SwordHandler.new(owner: Player | Model, sword: Tool, lastDamagerCache: 
     self.LastAttackTime = 0
     self.IsToolEquipped = false
     self.IsDestroyed = false
+    self.CurrentGrip = "UP"
+    self.AttackStartTime = 0
+    self.CurrentAttackType = nil
 
     self.Connections = {}
     self.ActiveTasks = {}
@@ -228,6 +283,122 @@ end
 
 function SwordHandler:IsActive(): boolean
     return not self.IsDestroyed and self:_isOwnerAlive()
+end
+
+--[=[
+    Attempts to perform a slash attack programmatically.
+    
+    This method allows you to trigger a slash attack from other scripts. It will only
+    succeed if the sword is equipped, the owner is alive, and not already attacking.
+    
+    @return boolean -- `true` if the slash was initiated, `false` otherwise.
+    @tag core
+    @since v0.3.0
+]=]
+function SwordHandler:TrySlash(): boolean
+    if self.IsDestroyed or self.IsAttacking or not self.IsToolEquipped or not self:_isOwnerAlive() then
+        return false
+    end
+
+    self.LastAttackTime = os.clock()
+    self:_performSlash()
+    return true
+end
+
+--[=[
+    Attempts to perform a lunge attack programmatically.
+    
+    This method allows you to trigger a lunge attack from other scripts. It will only
+    succeed if the sword is equipped, the owner is alive, and not already attacking.
+    
+    @return boolean -- `true` if the lunge was initiated, `false` otherwise.
+    @tag core
+    @since v0.3.0
+]=]
+function SwordHandler:TryLunge(): boolean
+    if self.IsDestroyed or self.IsAttacking or not self.IsToolEquipped or not self:_isOwnerAlive() then
+        return false
+    end
+
+    self.LastAttackTime = os.clock()
+    self:_performLunge()
+    return true
+end
+
+--[=[
+    Returns a comprehensive table containing the current state of the sword handler.
+    
+    @return SwordHandlerState -- A detailed snapshot of the handler's current state.
+    @tag utility
+    @since v0.3.0
+    
+    ## Example
+    
+    ```lua
+    local sword = Sworduh:Sword(player)
+    if sword then
+        local state = sword:GetState()
+        
+        if state.IsInLungeWindow then
+            print("Player can perform a lunge attack!")
+        end
+        
+        if state.RemainingAttackTime > 0 then
+            print("Attack will finish in", state.RemainingAttackTime, "seconds")
+        end
+        
+        print("Current grip:", state.CurrentGrip)
+        print("Next attack type:", state.NextAttackType)
+    end
+    ```
+]=]
+function SwordHandler:GetState(): SwordHandlerState
+    local currentTime = os.clock()
+    local timeSinceLastAttack = currentTime - self.LastAttackTime
+    local isInLungeWindow = timeSinceLastAttack < Configuration.TIMING.LUNGE_WINDOW
+    
+    local canAttack = not self.IsDestroyed and 
+                     not self.IsAttacking and 
+                     self.IsToolEquipped and 
+                     self:_isOwnerAlive()
+    
+    local nextAttackType: "slash" | "lunge" = if isInLungeWindow then "lunge" else "slash"
+    
+    local remainingAttackTime = 0
+    if self.IsAttacking and self.AttackStartTime > 0 then
+        local elapsedAttackTime = currentTime - self.AttackStartTime
+        if self.CurrentAttackType == "slash" then
+            remainingAttackTime = math.max(0, Configuration.TIMING.SLASH_TIME - elapsedAttackTime)
+        elseif self.CurrentAttackType == "lunge" then
+            local totalLungeTime = Configuration.TIMING.SLASH_TIME + Configuration.TIMING.LUNGE_TIME
+            remainingAttackTime = math.max(0, totalLungeTime - elapsedAttackTime)
+        end
+    end
+    
+    local activeTaskCount = 0
+    for _, taskThread in pairs(self.ActiveTasks) do
+        if taskThread and coroutine.status(taskThread) ~= "dead" then
+            activeTaskCount += 1
+        end
+    end
+
+    return {
+        Owner = self.Owner,
+        Damage = self.Damage,
+        IsAttacking = self.IsAttacking,
+        IsToolEquipped = self.IsToolEquipped,
+        IsDestroyed = self.IsDestroyed,
+        IsActive = self:IsActive(),
+        LastAttackTime = self.LastAttackTime,
+        TimeSinceLastAttack = timeSinceLastAttack,
+        IsInLungeWindow = isInLungeWindow,
+        CurrentGrip = self.CurrentGrip,
+        CanAttack = canAttack,
+        NextAttackType = nextAttackType,
+        RemainingAttackTime = remainingAttackTime,
+        ActiveTaskCount = activeTaskCount,
+        CurrentAttackType = self.CurrentAttackType,
+    }
 end
 
 -- Private
@@ -368,8 +539,10 @@ function SwordHandler:_onTouch(hit: BasePart)
         return
     end
 
+    local myCharacter = Utils.getCharacter(self.Owner)
     local hitCharacter = hit.Parent
-    if not hitCharacter then
+
+    if not myCharacter or not hitCharacter or hitCharacter == myCharacter then
         return
     end
     
@@ -397,8 +570,6 @@ function SwordHandler:_onTouch(hit: BasePart)
         return
     end
 
-    local myCharacter = Utils.getCharacter(self.Owner)
-    if not myCharacter then return end
     local myRoot = myCharacter:FindFirstChild("HumanoidRootPart") :: BasePart?
     if not myRoot then return end
 
@@ -481,6 +652,8 @@ end
 
 function SwordHandler:_performSlash()
     self.Damage = Configuration.COMBAT.DAMAGE_VALUES.SLASH
+    self.AttackStartTime = os.clock()
+    self.CurrentAttackType = "slash"
 
     local slashSound = self.Sounds.Slash
     if slashSound then
@@ -492,6 +665,8 @@ function SwordHandler:_performSlash()
     self:_scheduleTask(function()
         if not self.IsDestroyed and self.Damage == Configuration.COMBAT.DAMAGE_VALUES.SLASH then
             self.Damage = Configuration.COMBAT.DAMAGE_VALUES.BASE
+            self.AttackStartTime = 0
+            self.CurrentAttackType = nil
         end
     end, Configuration.TIMING.SLASH_TIME)
 end
@@ -506,6 +681,8 @@ end
 function SwordHandler:_performLunge()
     self.Damage = Configuration.COMBAT.DAMAGE_VALUES.LUNGE
     self.IsAttacking = true
+    self.AttackStartTime = os.clock()
+    self.CurrentAttackType = "lunge"
 
     local lungeSound = self.Sounds.Lunge
     if lungeSound then
@@ -525,6 +702,8 @@ function SwordHandler:_performLunge()
             self:_setSwordGrip("UP")
             self.IsAttacking = false
             self.Damage = Configuration.COMBAT.DAMAGE_VALUES.BASE
+            self.AttackStartTime = 0
+            self.CurrentAttackType = nil
         end
     end, Configuration.TIMING.SLASH_TIME + Configuration.TIMING.LUNGE_TIME)
 end
@@ -542,6 +721,8 @@ function SwordHandler:_resetSwordState()
     self.IsAttacking = false
     self.Damage = Configuration.COMBAT.DAMAGE_VALUES.BASE
     self.IsToolEquipped = false
+    self.AttackStartTime = 0
+    self.CurrentAttackType = nil
 
     if not self.IsDestroyed and self.SwordTool then
         self:_setSwordGrip("UP")
@@ -566,6 +747,7 @@ function SwordHandler:_setSwordGrip(gripType: "UP" | "OUT")
         return
     end
     
+    self.CurrentGrip = gripType
     self.SwordTool.Grip = grip
 end
 

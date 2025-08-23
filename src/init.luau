@@ -220,7 +220,7 @@ Sworduh.RespawnConnections = {} :: {[Player]: RBXScriptConnection}
     if sword then
         -- Check if still active later
         if sword:IsActive() then
-            print("Sword is still active!")S
+            print("Sword is still active!")
         end
     else
         warn("Failed to give sword to", player.Name)
@@ -629,7 +629,6 @@ end
 function Sworduh:_setupPlayerRespawnConnections(target: Player)
     if Utils.isPlayer(target) and not self.RespawnConnections[target] then
         self.RespawnConnections[target] = (target :: Player).CharacterAdded:Connect(function(character)
-            print(Configuration.CHARACTER.GIVE_SWORD_ON_SPAWN)
             if Configuration.CHARACTER.GIVE_SWORD_ON_SPAWN then
                 self:Unsword(target)
 
