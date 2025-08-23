@@ -134,6 +134,7 @@ export type Sworduh = {
     _setupPlayerRespawnConnections: (self: Sworduh, target: Player) -> (),
     _cleanupPlayerRespawnConnection: (self: Sworduh, target: Player) -> (),
     _cleanupEntitySword: (self: Sworduh, target: Player | Model) -> (),
+    _waitForEventWithTimeout: (self: SwordHandler, event: RBXScriptSignal, timeout: number, validator: ((any) -> boolean)?) -> (boolean, any),
     _createSword: (self: Sworduh) -> Tool?,
 }
 
@@ -240,9 +241,14 @@ function Sworduh:Sword(target: Player | Model): SwordHandler?
         character = (target :: Player).Character
 
         if not character then
-            local success, result = pcall(function()
-                return (target :: Player).CharacterAdded:Wait()
-            end)
+            local success, result = self:_waitForEventWithTimeout(
+                (target :: Player).CharacterAdded, 
+                Configuration.CHARACTER.TIMEOUT,
+                function(_character)
+                    return _character and _character.Parent and target.Parent
+                end
+            )
+
             if not success or not result or not target.Parent then
                 warn("Failed to get character for ".. target.Name.. " |\n".. tostring(result))
                 return nil
@@ -252,28 +258,16 @@ function Sworduh:Sword(target: Player | Model): SwordHandler?
         end
 
         if character and not character.Parent then
-            local connection: RBXScriptConnection?
-            local timeOutConnection: thread?
-            local characterReady: boolean = false
-
-            connection = character.AncestryChanged:Connect(function()
-                if character and character.Parent then
-                    characterReady = true
-                    if connection then connection:Disconnect() end
-                    if timeOutConnection then task.cancel(timeOutConnection) end
+            local success = self:_waitForEventWithTimeout(
+                character.AncestryChanged,
+                Configuration.CHARACTER.TIMEOUT,
+                function()
+                    return character and character.Parent
                 end
-            end)
+            )
 
-            timeOutConnection = task.delay(Configuration.CHARACTER.TIMEOUT, function()
-                if connection then connection:Disconnect() end
-                warn(target.Name, "timeout while waiting for character to be parented.")
-            end)
-
-            while not characterReady and connection and connection.Connected do
-                task.wait(Configuration.CHARACTER.POLL_INTERVAL)
-            end
-
-            if not characterReady then
+            if not success then
+                warn(target.Name, "timed out while waiting for character to be parented")
                 return nil
             end
         end
@@ -659,6 +653,44 @@ function Sworduh:_cleanupPlayerRespawnConnection(target: Player)
         connection:Disconnect()
         self.RespawnConnections[target] = nil
     end
+end
+
+function Sworduh:_waitForEventWithTimeout(event: RBXScriptSignal, timeout: number, validator: ((any) -> boolean)?): (boolean, any)
+    local connection: RBXScriptConnection?
+    local timeoutThread: thread?
+    local finished = false
+    local result = nil
+    local success = false
+
+    connection = event:Connect(function(...)
+        local eventResult = {...}
+        local eventValue = eventResult[1]
+
+        if validator then
+            if validator(eventValue) then
+                result = eventValue
+                success = true
+                finished = true
+            end
+        else
+            result = eventValue
+            success = true
+            finished = true
+        end
+    end)
+
+    timeoutThread = task.delay(timeout, function()
+        finished = true
+    end)
+
+    while not finished do
+        task.wait(0.1)
+    end
+
+    if connection then connection:Disconnect() end
+    if timeoutThread then task.cancel(timeoutThread) end
+
+    return success, result
 end
 
 --[=[
