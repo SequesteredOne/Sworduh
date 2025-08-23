@@ -10,6 +10,7 @@ sourcemap.json
 
 # Wally
 /Packages/
+/DevPackages/
 
 # Docs
 /build/

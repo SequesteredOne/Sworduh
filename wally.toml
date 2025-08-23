@@ -9,6 +9,12 @@ exclude = [
 "moonwave.toml",
 "rokit.toml",
 "sourcemap.json",
+"Packages",
+"DevPackages",
 ]
 
+[dev-dependencies]
+jest = "jsdotlua/jest@3.10.0"
+
 [dependencies]
+promise = "evaera/promise@4.0.0"
