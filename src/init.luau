@@ -83,10 +83,14 @@
 local Players = game:GetService("Players")
 local InsertService = game:GetService("InsertService")
 
+local Packages = script:WaitForChild("Packages")
+local Promise = require(Packages:WaitForChild("promise"))
+
 local Utils = require(script:WaitForChild("Utils"))
 local Configuration = require(script:WaitForChild("Configuration"))
 local SwordHandler = require(script:WaitForChild("SwordHandler"))
 
+type Promise<T> = typeof(Promise.new(function() end))
 export type SwordHandler = SwordHandler.SwordHandler
 
 --[=[
@@ -134,7 +138,7 @@ export type Sworduh = {
     _setupPlayerRespawnConnections: (self: Sworduh, target: Player) -> (),
     _cleanupPlayerRespawnConnection: (self: Sworduh, target: Player) -> (),
     _cleanupEntitySword: (self: Sworduh, target: Player | Model) -> (),
-    _waitForEventWithTimeout: (self: SwordHandler, event: RBXScriptSignal, timeout: number, validator: ((any) -> boolean)?) -> (boolean, any),
+    _getPlayerCharacter: (self: Sworduh, player: Player) -> Promise<Model>,
     _createSword: (self: Sworduh) -> Tool?,
 }
 
@@ -229,6 +233,44 @@ Sworduh.RespawnConnections = {} :: {[Player]: RBXScriptConnection}
     ```
 ]=]
 
+function Sworduh:_getPlayerCharacter(player: Player): Promise<Model>
+    if not player or player.Parent == nil then
+        return Promise.reject("Player is invalid or has left the game")
+    end
+    
+    local existingCharacter = player.Character
+    if existingCharacter and existingCharacter.Parent then
+        return Promise.resolve(existingCharacter)
+    end
+
+    local candidates = {}
+
+    if existingCharacter and not existingCharacter.Parent then
+        local characterReference = existingCharacter
+        table.insert(candidates, Promise.fromEvent(characterReference.AncestryChanged, function(_, parent)
+            return parent ~= nil
+        end):andThen(function()
+            return characterReference
+        end))
+    end
+
+    table.insert(candidates, Promise.fromEvent(player.CharacterAdded, function(character: Model)
+        return character ~= nil and character.Parent ~= nil
+    end))
+
+    table.insert(candidates, Promise.fromEvent(player.AncestryChanged, function(_, parent)
+        return parent == nil
+    end):andThen(function()
+        return Promise.reject("Player", player.Name, "left before character loaded")
+    end))
+
+    table.insert(candidates, Promise.delay(Configuration.CHARACTER.TIMEOUT):andThen(function()
+        return Promise.reject("Character loading timeout for player", player.Name)
+    end))
+
+    return Promise.race(candidates)
+end
+
 function Sworduh:Sword(target: Player | Model): SwordHandler?
     if not target or not target.Parent then
         warn("Attempted to sword a missing or invalid target.")
@@ -238,39 +280,22 @@ function Sworduh:Sword(target: Player | Model): SwordHandler?
 	local character: Model?
 
     if Utils.isPlayer(target) then
-        character = (target :: Player).Character
+        local success, result = self:_getPlayerCharacter(target :: Player):await()
 
-        if not character then
-            local success, result = self:_waitForEventWithTimeout(
-                (target :: Player).CharacterAdded, 
-                Configuration.CHARACTER.TIMEOUT,
-                function(_character)
-                    return _character and _character.Parent and target.Parent
-                end
-            )
-
-            if not success or not result or not target.Parent then
-                warn("Failed to get character for ".. target.Name.. " |\n".. tostring(result))
-                return nil
-            end
-
-            character = result
+        if not success then
+            warn("Failed to get character for", target.Name, "|\n", tostring(result))
+            return nil
         end
 
-        if character and not character.Parent then
-            local success = self:_waitForEventWithTimeout(
-                character.AncestryChanged,
-                Configuration.CHARACTER.TIMEOUT,
-                function()
-                    return character and character.Parent
-                end
-            )
-
-            if not success then
-                warn(target.Name, "timed out while waiting for character to be parented")
-                return nil
-            end
+        if not (target :: Player).Parent then
+            warn("Player", target.Name, "left after character resolved")
         end
+
+        if not (result :: Model).Parent then
+            warn("Character for", target.Name, "became unparented")
+        end
+        
+        character = result
     else
         character = target :: Model
         assert(character, "Target must be a Model")
@@ -653,44 +678,6 @@ function Sworduh:_cleanupPlayerRespawnConnection(target: Player)
         connection:Disconnect()
         self.RespawnConnections[target] = nil
     end
-end
-
-function Sworduh:_waitForEventWithTimeout(event: RBXScriptSignal, timeout: number, validator: ((any) -> boolean)?): (boolean, any)
-    local connection: RBXScriptConnection?
-    local timeoutThread: thread?
-    local finished = false
-    local result = nil
-    local success = false
-
-    connection = event:Connect(function(...)
-        local eventResult = {...}
-        local eventValue = eventResult[1]
-
-        if validator then
-            if validator(eventValue) then
-                result = eventValue
-                success = true
-                finished = true
-            end
-        else
-            result = eventValue
-            success = true
-            finished = true
-        end
-    end)
-
-    timeoutThread = task.delay(timeout, function()
-        finished = true
-    end)
-
-    while not finished do
-        task.wait(0.1)
-    end
-
-    if connection then connection:Disconnect() end
-    if timeoutThread then task.cancel(timeoutThread) end
-
-    return success, result
 end
 
 --[=[

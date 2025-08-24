@@ -5,7 +5,11 @@
 
     "ReplicatedStorage": {
       "Sworduh": {
-        "$path": "src"
+        "$path": "src",
+
+        "Packages": {
+          "$path": "Packages"
+        }
       }
     },
 
