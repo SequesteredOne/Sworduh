@@ -692,6 +692,7 @@ function Sworduh:_createSword(): Tool?
     sword.CanBeDropped = Configuration.TOOL.CAN_BE_DROPPED
     sword.Grip = Configuration.TOOL.GRIPS.UP
     sword.TextureId = Configuration.TOOL.ASSETS.TEXTURE_ID
+    sword.RequiresHandle = true
 
     local success, handle = pcall(function()
         return InsertService:CreateMeshPartAsync(
@@ -707,11 +708,13 @@ function Sworduh:_createSword(): Tool?
     end
 
     handle.Name = "Handle"
+    handle.Massless = true
     handle.TextureID = Configuration.TOOL.ASSETS.MESH_TEXTURE_ID
     handle.Parent = sword
 
     local hitbox = Instance.new("Part")
     hitbox.Name = "Hitbox"
+    hitbox.Massless = true
     hitbox.Size = Configuration.SWORD_PROPERTIES.HITBOX_SIZE
     hitbox.CFrame = handle.CFrame * CFrame.new(Configuration.SWORD_PROPERTIES.HITBOX_OFFSET)
     hitbox.Transparency = 1
