@@ -126,7 +126,7 @@ export type Sworduh = {
     SwordObjects: {[Player | Model]: SwordHandler},
     LastDamagerCache: {[Player | Model]: Player | Model},
     RespawnConnections: {[Player]: RBXScriptConnection},
-    Connections: {[string]: RBXScriptConnection | {Disconnect: () -> ()}},
+    Connections: {[Player | Model]: RBXScriptConnection | {Disconnect: () -> ()}},
 
     Sword: (self: Sworduh, target: Player | Model) -> SwordHandler?,
     SwordAll: (self: Sworduh) -> (),
@@ -187,7 +187,7 @@ Sworduh.__index = Sworduh
 
 Sworduh.SwordObjects = {} :: {[Player | Model]: SwordHandler}
 Sworduh.LastDamagerCache = {} :: {[Player | Model]: Player | Model}
-Sworduh.Connections = {} :: {[string]: RBXScriptConnection | {Disconnect: () -> ()}}
+Sworduh.Connections = {} :: {[Player | Model]: RBXScriptConnection | {Disconnect: () -> ()}}
 Sworduh.RespawnConnections = {} :: {[Player]: RBXScriptConnection}
 
 -- Public Methods
@@ -466,7 +466,7 @@ end
     ```
 ]=]
 
-function Sworduh:GetKiller(target: Player | Model): Player?
+function Sworduh:GetKiller(target: Player | Model): Player | Model?
     if not target then
         return nil
     end
@@ -556,11 +556,8 @@ end
 ]=]
 
 function Sworduh:_setupEntityConnections(target: Player | Model)
-    local connectionKey: string = if Utils.isPlayer(target) 
-        then "PlayerEvents_".. (target :: Player).UserId
-        else "NPCEvents_".. tostring(target)
 
-    local existingConnection = self.Connections[connectionKey]
+    local existingConnection = self.Connections[target]
     if existingConnection then
         if typeof(existingConnection) == "RBXScriptConnection" and existingConnection.Connected then
             existingConnection:Disconnect()
@@ -580,10 +577,13 @@ function Sworduh:_setupEntityConnections(target: Player | Model)
     table.insert(connections, target.AncestryChanged:Connect(function()
         if not target.Parent then
             self:_cleanupEntitySword(target)
+            if Utils.isPlayer(target) then
+                self:_cleanupPlayerRespawnConnection(target :: Player)
+            end
         end
     end))
 
-    self.Connections[connectionKey] = {
+    self.Connections[target] = {
         Disconnect = function()
             for _, connection in pairs(connections) do
                 if connection and connection.Connected then
@@ -616,18 +616,14 @@ function Sworduh:_cleanupEntitySword(target: Player | Model)
 
     self.LastDamagerCache[target] = nil
 
-    local connectionKey: string = if Utils.isPlayer(target) 
-        then "PlayerEvents_".. (target :: Player).UserId
-        else "NPCEvents_".. tostring(target)
-
-    local connection = self.Connections[connectionKey]
+    local connection = self.Connections[target]
     if connection then
         if typeof(connection) == "RBXScriptConnection" and connection.Connected then
             connection:Disconnect()
         elseif typeof(connection) == "table" and connection.Disconnect then
             connection.Disconnect()
         end
-        self.Connections[connectionKey] = nil
+        self.Connections[target] = nil
     end
 end
 
@@ -646,14 +642,15 @@ end
 ]=]
 
 function Sworduh:_setupPlayerRespawnConnections(target: Player)
-    if Utils.isPlayer(target) and not self.RespawnConnections[target] then
+    if 
+        Utils.isPlayer(target) 
+        and Configuration.CHARACTER.GIVE_SWORD_ON_SPAWN 
+        and not self.RespawnConnections[target] 
+    then
         self.RespawnConnections[target] = (target :: Player).CharacterAdded:Connect(function(character)
-            if Configuration.CHARACTER.GIVE_SWORD_ON_SPAWN then
-                self:Unsword(target)
-
-                if character and character.Parent then
-                    self:Sword(target)
-                end
+            if character and character.Parent then
+                self:_cleanupEntitySword(target)
+                self:Sword(target)
             end
         end)
     end
