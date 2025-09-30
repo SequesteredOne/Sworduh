@@ -15,6 +15,9 @@ sourcemap.json
 /Packages/
 /DevPackages/
 
+# npm
+/node_modules
+
 # Docs
 /build/
 out/
