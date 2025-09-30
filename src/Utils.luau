@@ -15,10 +15,14 @@ end
 function Utils.getTeam(target: Player | Model): (Team | string)?
     if target:IsA("Player") then
         return (target :: Player).Team
-    else
-        local teamValue = (target :: Model):FindFirstChild("Team")
-        return teamValue and teamValue.Value or nil
     end
+
+    local teamValue = (target :: Model):FindFirstChild("Team")
+    if teamValue and teamValue:IsA("StringValue") then
+        return teamValue.Value
+    end
+
+    return nil
 end
 
 return Utils
