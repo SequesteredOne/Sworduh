@@ -1,0 +1,25 @@
+{
+    "compilerOptions": {
+        "strict": true,
+        "noImplicitAny": true,
+        "noUnusedLocals": true,
+        "noUnusedParameters": true,
+        "noImplicitReturns": true,
+        "skipLibCheck": true,
+
+        "types": ["@rbxts/types"],
+
+        "moduleResolution": "node",
+        "module": "commonjs",
+        "noEmit": true,
+    },
+
+    "include": [
+        "types/**/*.d.ts",
+        "test-d/**/*.ts"
+    ],
+    "exclude": [
+        "node_modules",
+        "out"
+    ]
+}

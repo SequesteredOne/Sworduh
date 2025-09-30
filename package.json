@@ -1,0 +1,38 @@
+{
+  "name": "@rbxts/sworduh",
+  "version": "0.3.0-beta",
+  "description": "TypeScript type defitinitons for Sworduh, a classic linked sword system for Roblox",
+  "main": "types/index.d.ts",
+  "types": "types/index.d.ts",
+  "files": [
+    "types",
+    "README.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SequesteredOne/Sworduh.git"
+  },
+  "keywords": [
+    "roblox",
+    "roblox-ts",
+    "rbxts",
+    "sword"
+  ],
+  "tsd": {
+    "directory": "tests-d"
+  },
+  "author": "SequesteredOne",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "packageManager": "pnpm@10.17.1",
+  "devDependencies": {
+    "@rbxts/compiler-types": "3.0.0-types.0",
+    "@rbxts/types": "^1.0.883",
+    "roblox-ts": "^3.0.0",
+    "tsd": "^0.33.0",
+    "typescript": "^5.9.2"
+  }
+}
