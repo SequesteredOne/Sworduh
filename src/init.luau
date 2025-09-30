@@ -254,7 +254,7 @@ function Sworduh:_getPlayerCharacter(player: Player): Promise<Model>
         end))
     end
 
-    table.insert(candidates, Promise.fromEvent(player.CharacterAdded, function(character: Model)
+    table.insert(candidates, Promise.fromEvent(player.CharacterAdded, function(character: Model?) -- Model should always be valid, but I do not trust Roblox
         return character ~= nil and character.Parent ~= nil
     end))
 
@@ -348,7 +348,10 @@ function Sworduh:Sword(target: Player | Model): SwordHandler?
 
     self.SwordObjects[target] = swordObject
     self:_setupEntityConnections(target)
-    self:_setupPlayerRespawnConnections(target)
+
+    if Utils.isPlayer(target) then
+        self:_setupPlayerRespawnConnections(target :: Player)
+    end
 
     return swordObject
 end
@@ -401,7 +404,10 @@ function Sworduh:Unsword(target: Player | Model): boolean
     end
 
     self:_cleanupEntitySword(target)
-    self:_cleanupPlayerRespawnConnection(target)
+
+    if Utils.isPlayer(target) then
+        self:_cleanupPlayerRespawnConnection(target :: Player)
+    end
 
     return self.SwordObjects[target] == nil
 end
