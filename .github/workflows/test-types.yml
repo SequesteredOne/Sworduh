@@ -1,0 +1,29 @@
+name: Test Types
+
+on:
+    push:
+        branches: [ main ]
+    pull_request:
+        branches: [ main ]
+
+jobs:
+    tsd:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                node-version: "18"
+
+            - name: "Install deps"
+              run: npm ci
+
+            - name: Run tsc
+              run: npx tsc --noEmit
+
+            - name: Run tsd
+              run: npx tsd
