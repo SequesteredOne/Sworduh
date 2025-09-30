@@ -8,6 +8,9 @@
 *.rbxmx
 sourcemap.json
 
+# Roblox global types
+/globalTypes.d.luau
+
 # Wally
 /Packages/
 /DevPackages/
