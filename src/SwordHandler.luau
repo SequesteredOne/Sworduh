@@ -357,10 +357,7 @@ function SwordHandler:GetState(): SwordHandlerState
     local timeSinceLastAttack = currentTime - self.LastAttackTime
     local isInLungeWindow = timeSinceLastAttack < Configuration.TIMING.LUNGE_WINDOW
     
-    local canAttack = not self.IsDestroyed and 
-                     not self.IsAttacking and 
-                     self.IsToolEquipped and 
-                     self:_isOwnerAlive()
+    local canAttack = not self.IsDestroyed and not self.IsAttacking and self.IsToolEquipped and self:_isOwnerAlive()
     
     local nextAttackType: "slash" | "lunge" = if isInLungeWindow then "lunge" else "slash"
     
