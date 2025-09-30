@@ -342,7 +342,9 @@ function Sworduh:Sword(target: Player | Model): SwordHandler?
 
     if not success then
         warn("Failed to create sword handler for", target.Name, " |\n", swordObject)
-        if swordTool then swordTool:Destroy() end
+        if swordTool then
+            swordTool:Destroy()
+        end
         return nil
     end
 
@@ -528,7 +530,7 @@ function Sworduh:Cleanup()
 
     table.clear(self.LastDamagerCache)
 
-    for key, connection in pairs(self.Connections) do
+    for _, connection in pairs(self.Connections) do
         if connection then
             if typeof(connection) == "RBXScriptConnection" and connection.Connected then
                 connection:Disconnect()
@@ -539,7 +541,7 @@ function Sworduh:Cleanup()
     end
     table.clear(self.Connections)
 
-    for key, connection in pairs(self.RespawnConnections) do
+    for _, connection in pairs(self.RespawnConnections) do
         if connection then
             connection:Disconnect()
         end
