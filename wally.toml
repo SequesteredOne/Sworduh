@@ -11,6 +11,15 @@ exclude = [
 "sourcemap.json",
 "Packages",
 "DevPackages",
+"node_modules",
+"globalTypes.d.luau",
+"Sworduh.rbxlx",
+"tests-d",
+"selene.toml",
+"pnpm-lock.yaml",
+"package.json",
+"tsconfig.json",
+"types"
 ]
 
 [dev-dependencies]
