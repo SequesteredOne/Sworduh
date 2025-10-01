@@ -19,8 +19,11 @@ jobs:
               with:
                 node-version: "18"
 
-            - name: "Install deps"
-              run: npm ci
+            - name: Install pnpm
+              run: npm install -g pnpm
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
 
             - name: Run tsc
               run: npx tsc --noEmit
