@@ -23,9 +23,7 @@ Sworduh is a server-side sword system for Roblox. It is designed to handle givin
 
 ### Manual
 
-- Download the latest .rbxm from Releases:
-
-<https://github.com/SequesteredOne/Sworduh/releases>
+- Download the [.rbxm](https://github.com/SequesteredOne/Sworduh/releases) from the latest release
 
 - Insert the model into ReplicatedStorage and require it:
 
