@@ -193,44 +193,7 @@ Sworduh.RespawnConnections = {} :: {[Player]: RBXScriptConnection}
 -- Public Methods
 
 --[=[
-    Creates and equips a sword for the specified player or NPC.
-
-    When [Configuration.CHARACTER.GIVE_SWORD_ON_SPAWN](./Configuration#CHARACTER) is true, player's who this method is called on
-    will automatically recieve a new sword when respawning. This is disabled by calling [Unsword()](./Sworduh#Unsword), or setting the configuration to false.
-    NPCs are not affected by this, and do not recieve swords on respawn. 
-
-    If the entity already has a sword, the existing sword handler is returned.
-
-    :::tip
-    This method is safe to call multiple times for the same entity - it will return 
-    the existing sword if one is already equipped.
-    :::
-
-    :::warning
-    If character loading fails or times out, this method returns `nil`. Always check
-    the return value before using the sword handler.
-    :::
-
-    @param target -- The entity to equip with a sword
-    @return SwordHandler? -- The created sword handler, or nil if failed
-    @yields -- May yield while waiting for character to load
-    @error "Invalid target" -- When target is missing or has left the game
-    @tag core
-    @since v0.2.0
-    
-    ## Example
-    
-    ```lua
-    local sword = Sworduh:Sword(player)
-    if sword then
-        -- Check if still active later
-        if sword:IsActive() then
-            print("Sword is still active!")
-        end
-    else
-        warn("Failed to give sword to", player.Name)
-    end
-    ```
+    Retrieves a player's character using a promise-based flow. 
 ]=]
 
 function Sworduh:_getPlayerCharacter(player: Player): Promise<Model>
@@ -270,6 +233,47 @@ function Sworduh:_getPlayerCharacter(player: Player): Promise<Model>
 
     return Promise.race(candidates)
 end
+
+--[=[
+    Creates and equips a sword for the specified player or NPC.
+
+    When [Configuration.CHARACTER.GIVE_SWORD_ON_SPAWN](./Configuration#CHARACTER) is true, player's who this method is called on
+    will automatically recieve a new sword when respawning. This is disabled by calling [Unsword()](./Sworduh#Unsword), or setting the configuration to false.
+    NPCs are not affected by this, and do not recieve swords on respawn. 
+
+    If the entity already has a sword, the existing sword handler is returned.
+
+    :::tip
+    This method is safe to call multiple times for the same entity - it will return 
+    the existing sword if one is already equipped.
+    :::
+
+    :::warning
+    If character loading fails or times out, this method returns `nil`. Always check
+    the return value before using the sword handler.
+    :::
+
+    @param target -- The entity to equip with a sword
+    @return SwordHandler? -- The created sword handler, or nil if failed
+    @yields -- May yield while waiting for character to load
+    @error "Invalid target" -- When target is missing or has left the game
+    @tag core
+    @since v0.2.0
+    
+    ## Example
+    
+    ```lua
+    local sword = Sworduh:Sword(player)
+    if sword then
+        -- Check if still active later
+        if sword:IsActive() then
+            print("Sword is still active!")
+        end
+    else
+        warn("Failed to give sword to", player.Name)
+    end
+    ```
+]=]
 
 function Sworduh:Sword(target: Player | Model): SwordHandler?
     if not target or not target.Parent then
