@@ -3,13 +3,15 @@
   "tree": {
     "$className": "DataModel",
 
-    "ReplicatedStorage": {
+    "ServerScriptService": {
       "Sworduh": {
-        "$path": "src",
+        "$path": "src"
+      }
+    },
 
-        "Packages": {
-          "$path": "Packages"
-        }
+    "ReplicatedStorage": {
+      "Packages": {
+        "$path": "Packages"
       }
     },
 

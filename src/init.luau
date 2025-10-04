@@ -81,9 +81,10 @@
 ]=]
 
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local InsertService = game:GetService("InsertService")
 
-local Packages = script:WaitForChild("Packages")
+local Packages = ReplicatedStorage:WaitForChild("Packages")
 local Promise = require(Packages:WaitForChild("promise"))
 
 local Utils = require(script:WaitForChild("Utils"))
