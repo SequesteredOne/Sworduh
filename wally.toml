@@ -1,6 +1,6 @@
 [package]
 name = "sequesteredone/sworduh"
-version = "0.3.0-beta"
+version = "0.3.1-beta"
 registry = "https://github.com/UpliftGames/wally-index"
 realm = "server"
 exclude = [
