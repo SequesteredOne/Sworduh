@@ -14,7 +14,7 @@ Sworduh is a server-side sword system for Roblox. It is designed to handle givin
 
 ```toml
     [dependencies]
-    sworduh = "sequesteredone/sworduh@0.3.0-beta" # use latest version
+    sworduh = "sequesteredone/sworduh@0.3.5-beta" # use latest version
 ```
 
 - then run:
