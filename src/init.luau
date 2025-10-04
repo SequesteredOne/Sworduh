@@ -83,8 +83,19 @@
 local Players = game:GetService("Players")
 local InsertService = game:GetService("InsertService")
 
-local Packages = script:WaitForChild("Packages")
-local Promise = require(Packages:WaitForChild("promise"))
+local Promise do
+    local wallyPromise = script.Parent.Parent:FindFirstChild("promise")
+    if wallyPromise then
+        Promise = (require)(wallyPromise)
+    else
+        local bundledPackages = script:FindFirstChild("Packages")
+        if bundledPackages and bundledPackages:FindFirstChild("promise") then
+            Promise = require(bundledPackages.promise)
+        else
+            error("Could not find promise package. Ensure dependencies are installed.")
+        end
+    end
+end
 
 local Utils = require(script:WaitForChild("Utils"))
 local Configuration = require(script:WaitForChild("Configuration"))

@@ -1,25 +1,25 @@
 [package]
 name = "sequesteredone/sworduh"
-version = "0.3.0-beta"
+version = "0.3.5-beta"
 registry = "https://github.com/UpliftGames/wally-index"
 realm = "server"
 exclude = [
-"assets",
-"default.project.json",
-"moonwave.toml",
-"rokit.toml",
-"sourcemap.json",
-"Packages",
-"DevPackages",
-"node_modules",
-"globalTypes.d.luau",
-"Sworduh.rbxlx",
-"tests-d",
-"selene.toml",
-"pnpm-lock.yaml",
-"package.json",
-"tsconfig.json",
-"types"
+    "assets",
+    "default.project.json",
+    "moonwave.toml",
+    "rokit.toml",
+    "sourcemap.json",
+    "Packages",
+    "DevPackages",
+    "node_modules",
+    "globalTypes.d.luau",
+    "Sworduh.rbxlx",
+    "tests-d",
+    "selene.toml",
+    "pnpm-lock.yaml",
+    "package.json",
+    "tsconfig.json",
+    "types"
 ]
 
 [dev-dependencies]
