@@ -2,7 +2,7 @@
 name = "sequesteredone/sworduh"
 version = "0.3.5-beta"
 registry = "https://github.com/UpliftGames/wally-index"
-realm = "server"
+realm = "shared"
 exclude = [
     "assets",
     "default.project.json",
